@@ -26,7 +26,7 @@ Daily Operations:
   init       Initialize the envmgr store
   save       Save the current .env file
   list       List saved versions
-  diff       Show diff between two versions
+  diff       Show diff between two versions or files
   apply      Apply a saved version to disk
   env        Print export statements for a saved version
   exec       Run a command with saved environment variables
@@ -99,11 +99,11 @@ pub enum Commands {
         filter: Option<String>,
     },
 
-    /// Show diff between two versions
+    /// Show diff between two versions or files
     Diff {
-        /// First version (number or hash)
+        /// First version (number, hash, or file path)
         a: String,
-        /// Second version (number or hash)
+        /// Second version (number, hash, or file path)
         b: String,
         /// Show all variables including unchanged
         #[arg(long)]
