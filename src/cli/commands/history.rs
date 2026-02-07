@@ -35,7 +35,7 @@ pub fn run(
 
     for (i, save) in saves.iter().enumerate() {
         let num = i + 1;
-        let hash = output::truncate_hash(&save.content_hash);
+        let hash = output::short_hash(&save.content_hash);
         let branch_label = if save.branch.is_empty() {
             String::new()
         } else {

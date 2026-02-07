@@ -272,7 +272,7 @@ mod tests {
         )
         .unwrap();
 
-        let found = queries::get_save_by_hash(&conn, "/proj", "dead..HASH").unwrap();
+        let found = queries::get_save_by_hash(&conn, "/proj", "dead").unwrap();
         assert!(found.is_some());
     }
 

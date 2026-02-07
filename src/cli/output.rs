@@ -9,10 +9,10 @@ pub fn is_stdout_terminal() -> bool {
     io::stdout().is_terminal()
 }
 
-/// Truncate a hash for display: "abcdef1234..." -> "abcdef12..HASH"
-pub fn truncate_hash(hash: &str) -> String {
-    if hash.len() > 12 {
-        format!("{}..HASH", &hash[..8])
+/// Abbreviate a hash for display, git-style: "abcdef1234..." -> "abcdef12"
+pub fn short_hash(hash: &str) -> String {
+    if hash.len() > 8 {
+        hash[..8].to_string()
     } else {
         hash.to_string()
     }
@@ -133,14 +133,14 @@ mod tests {
     }
 
     #[test]
-    fn truncate_hash_long() {
+    fn short_hash_long() {
         let hash = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
-        assert_eq!(truncate_hash(hash), "abcdef12..HASH");
+        assert_eq!(short_hash(hash), "abcdef12");
     }
 
     #[test]
-    fn truncate_hash_short() {
-        assert_eq!(truncate_hash("short"), "short");
+    fn short_hash_short() {
+        assert_eq!(short_hash("short"), "short");
     }
 
     #[test]

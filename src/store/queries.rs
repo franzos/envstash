@@ -385,13 +385,8 @@ pub fn get_save_by_hash(
     );
     let mut stmt = conn.prepare(&sql)?;
 
-    // Support prefix match (e.g. "abc..HASH" -> "abc%").
-    let pattern = if hash.contains("..") {
-        let prefix = hash.split("..").next().unwrap_or(hash);
-        format!("{prefix}%")
-    } else {
-        hash.to_string()
-    };
+    // Support prefix match (e.g. "abcdef12" matches "abcdef1234567890...").
+    let pattern = format!("{hash}%");
 
     let mut rows = stmt.query(params![project_path, pattern])?;
     match rows.next()? {

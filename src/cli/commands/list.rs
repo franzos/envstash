@@ -198,7 +198,7 @@ fn print_saves_table(
             Some(ref h) if *h == save.content_hash => " *",
             _ => "",
         };
-        let hash = output::truncate_hash(&save.content_hash);
+        let hash = output::short_hash(&save.content_hash);
         let msg = save.message.as_deref().unwrap_or("");
         let num_str = format!("{num}{marker}");
 
