@@ -17,6 +17,7 @@ use crate::types::{EnvEntry, GitContext, SaveMetadata};
 #[derive(Parser)]
 #[command(
     name = "envmgr",
+    version,
     about = "Manage .env files across git branches",
     help_template = "\
 {about-with-newline}
