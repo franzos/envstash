@@ -11,6 +11,9 @@ envmgr init
 # Save the current .env file
 envmgr save
 
+# Save with a note
+envmgr save -m "trying new DB config"
+
 # List saved versions
 envmgr list
 
@@ -35,7 +38,7 @@ envmgr diff 1 2
 | Command | Description |
 |---------|-------------|
 | `envmgr init` | Initialize the store (choose encryption mode) |
-| `envmgr save [file]` | Save a `.env` file (default: `.env` in cwd) |
+| `envmgr save [file] [-m msg]` | Save a `.env` file with optional message |
 | `envmgr list` | List saved versions on the current branch |
 | `envmgr diff <a> <b>` | Diff two versions (by number or hash) |
 | `envmgr apply <version>` | Restore a version to disk |

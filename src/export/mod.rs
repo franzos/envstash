@@ -20,6 +20,8 @@ pub struct ExportEnvelope {
     pub commit: String,
     pub timestamp: String,
     pub content_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     pub entries: Vec<ExportEntry>,
 }
 
@@ -74,6 +76,8 @@ pub struct DumpSave {
     pub commit: String,
     pub timestamp: String,
     pub content_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     pub entries: Vec<ExportEntry>,
 }
 
@@ -86,6 +90,7 @@ pub fn build_dump_save(save: &SaveMetadata, entries: &[EnvEntry]) -> DumpSave {
         commit: save.commit_hash.clone(),
         timestamp: save.timestamp.clone(),
         content_hash: save.content_hash.clone(),
+        message: save.message.clone(),
         entries: entries.iter().map(ExportEntry::from).collect(),
     }
 }
@@ -127,6 +132,7 @@ pub fn build_envelope(save: &SaveMetadata, entries: &[EnvEntry]) -> ExportEnvelo
         commit: save.commit_hash.clone(),
         timestamp: save.timestamp.clone(),
         content_hash: save.content_hash.clone(),
+        message: save.message.clone(),
         entries: entries.iter().map(ExportEntry::from).collect(),
     }
 }
@@ -152,6 +158,7 @@ pub fn from_json(input: &str) -> Result<ExportEnvelope> {
 /// # commit: abc123...
 /// # timestamp: 2024-06-17T12:05:00Z
 /// # content_hash: def456...
+/// # message: trying new DB config
 ///
 /// # Database configuration
 /// DB_HOST=localhost
@@ -166,6 +173,9 @@ pub fn to_text(envelope: &ExportEnvelope) -> String {
     out.push_str(&format!("# commit: {}\n", envelope.commit));
     out.push_str(&format!("# timestamp: {}\n", envelope.timestamp));
     out.push_str(&format!("# content_hash: {}\n", envelope.content_hash));
+    if let Some(ref msg) = envelope.message {
+        out.push_str(&format!("# message: {msg}\n"));
+    }
     out.push('\n');
 
     for entry in &envelope.entries {
@@ -198,6 +208,7 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
     let mut commit = String::new();
     let mut timestamp = String::new();
     let mut content_hash = String::new();
+    let mut message: Option<String> = None;
 
     // Parse header metadata lines.
     let mut body_lines: Vec<&str> = Vec::new();
@@ -225,6 +236,8 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
                     timestamp = val.to_string();
                 } else if let Some(val) = rest.strip_prefix("content_hash: ") {
                     content_hash = val.to_string();
+                } else if let Some(val) = rest.strip_prefix("message: ") {
+                    message = Some(val.to_string());
                 }
             }
         } else {
@@ -247,6 +260,7 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
         commit,
         timestamp,
         content_hash,
+        message,
         entries: entries.iter().map(ExportEntry::from).collect(),
     })
 }
@@ -279,6 +293,7 @@ mod tests {
             commit: "46beae29b4d5af32308c4673addec86a82d95355".to_string(),
             timestamp: "2024-06-17T12:05:00Z".to_string(),
             content_hash: "abc123def456".to_string(),
+            message: None,
             entries: vec![
                 ExportEntry {
                     key: "DB_HOST".to_string(),
@@ -309,6 +324,7 @@ mod tests {
             timestamp: "2024-06-17T12:05:00Z".to_string(),
             content_hash: "abc123".to_string(),
             hmac: String::new(),
+            message: None,
         }
     }
 
@@ -325,6 +341,7 @@ mod tests {
         assert_eq!(parsed.commit, envelope.commit);
         assert_eq!(parsed.timestamp, envelope.timestamp);
         assert_eq!(parsed.content_hash, envelope.content_hash);
+        assert_eq!(parsed.message, None);
         assert_eq!(parsed.entries.len(), envelope.entries.len());
         for (a, b) in parsed.entries.iter().zip(envelope.entries.iter()) {
             assert_eq!(a.key, b.key);
@@ -358,6 +375,7 @@ mod tests {
         assert_eq!(parsed.commit, envelope.commit);
         assert_eq!(parsed.timestamp, envelope.timestamp);
         assert_eq!(parsed.content_hash, envelope.content_hash);
+        assert_eq!(parsed.message, None);
         assert_eq!(parsed.entries.len(), envelope.entries.len());
         for (a, b) in parsed.entries.iter().zip(envelope.entries.iter()) {
             assert_eq!(a.key, b.key);
@@ -443,6 +461,7 @@ mod tests {
         assert_eq!(envelope.file, "apps/backend/.env");
         assert_eq!(envelope.branch, "feature/auth");
         assert_eq!(envelope.commit, "46beae29");
+        assert_eq!(envelope.message, None);
         assert_eq!(envelope.entries.len(), 2);
     }
 
@@ -473,6 +492,7 @@ mod tests {
             commit: String::new(),
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "hash123".to_string(),
+            message: None,
             entries: vec![ExportEntry {
                 key: "KEY".to_string(),
                 value: "val".to_string(),
@@ -521,6 +541,7 @@ mod tests {
             commit: "abc".to_string(),
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "hash".to_string(),
+            message: None,
             entries: vec![ExportEntry {
                 key: "URL".to_string(),
                 value: "postgres://user:p@ss=w0rd@host/db".to_string(),
@@ -544,6 +565,7 @@ mod tests {
             commit: "abc".to_string(),
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "hash".to_string(),
+            message: None,
             entries: vec![ExportEntry {
                 key: "CONN".to_string(),
                 value: "postgres://host/db?opt=val".to_string(),
@@ -729,6 +751,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "h1".to_string(),
             hmac: String::new(),
+            message: None,
         };
         let meta2 = SaveMetadata {
             id: 2,
@@ -739,6 +762,7 @@ mod tests {
             timestamp: "2024-01-02T00:00:00Z".to_string(),
             content_hash: "h2".to_string(),
             hmac: String::new(),
+            message: None,
         };
         let entries = sample_entries();
         let saves = vec![
@@ -893,5 +917,119 @@ mod tests {
 
         let loaded = crate::store::queries::get_all_saves(&conn2, Some(&key)).unwrap();
         assert_eq!(loaded[0].1, entries);
+    }
+
+    // ----- Message round-trip tests -----
+
+    #[test]
+    fn json_round_trip_with_message() {
+        let mut envelope = sample_envelope();
+        envelope.message = Some("trying new DB config".to_string());
+        let json = to_json(&envelope).unwrap();
+        let parsed = from_json(&json).unwrap();
+        assert_eq!(parsed.message.as_deref(), Some("trying new DB config"));
+    }
+
+    #[test]
+    fn json_round_trip_without_message() {
+        let envelope = sample_envelope();
+        let json = to_json(&envelope).unwrap();
+        let parsed = from_json(&json).unwrap();
+        assert_eq!(parsed.message, None);
+        // message field should not appear in JSON when None
+        assert!(!json.contains("message"));
+    }
+
+    #[test]
+    fn text_round_trip_with_message() {
+        let mut envelope = sample_envelope();
+        envelope.message = Some("production values".to_string());
+        let text = to_text(&envelope);
+        assert!(text.contains("# message: production values\n"));
+        let parsed = from_text(&text).unwrap();
+        assert_eq!(parsed.message.as_deref(), Some("production values"));
+    }
+
+    #[test]
+    fn text_round_trip_without_message() {
+        let envelope = sample_envelope();
+        let text = to_text(&envelope);
+        assert!(!text.contains("# message:"));
+        let parsed = from_text(&text).unwrap();
+        assert_eq!(parsed.message, None);
+    }
+
+    #[test]
+    fn build_envelope_preserves_message() {
+        let mut meta = sample_metadata();
+        meta.message = Some("before migration".to_string());
+        let entries = sample_entries();
+        let envelope = build_envelope(&meta, &entries);
+        assert_eq!(envelope.message.as_deref(), Some("before migration"));
+    }
+
+    #[test]
+    fn dump_round_trip_with_message() {
+        let conn = test_conn();
+        let entries = sample_entries();
+        crate::store::queries::insert_save_with_message(
+            &conn, "/proj", ".env", "main", "a1",
+            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            Some("initial config"),
+        )
+        .unwrap();
+
+        let all = crate::store::queries::get_all_saves(&conn, None).unwrap();
+        assert_eq!(all[0].0.message.as_deref(), Some("initial config"));
+
+        let dump_saves: Vec<DumpSave> = all
+            .iter()
+            .map(|(save, e)| build_dump_save(save, e))
+            .collect();
+        assert_eq!(dump_saves[0].message.as_deref(), Some("initial config"));
+
+        let dump = build_dump(dump_saves);
+        let json = dump_to_json(&dump).unwrap();
+        let parsed = dump_from_json(&json).unwrap();
+        assert_eq!(parsed.saves[0].message.as_deref(), Some("initial config"));
+
+        // Load into fresh store and verify message survives.
+        let conn2 = test_conn();
+        let (inserted, _) =
+            crate::store::queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        assert_eq!(inserted, 1);
+        let loaded = crate::store::queries::get_all_saves(&conn2, None).unwrap();
+        assert_eq!(loaded[0].0.message.as_deref(), Some("initial config"));
+    }
+
+    #[test]
+    fn share_import_round_trip_with_message() {
+        let conn = test_conn();
+        let entries = sample_entries();
+        crate::store::queries::insert_save_with_message(
+            &conn, "/proj", ".env", "main", "abc",
+            "2024-06-17T12:00:00Z", "h1", &entries, None,
+            Some("share test message"),
+        )
+        .unwrap();
+
+        // Share.
+        let saves = crate::store::queries::list_saves(
+            &conn, "/proj", Some("main"), None, 1, None,
+        )
+        .unwrap();
+        let loaded = crate::store::queries::get_save_entries(&conn, saves[0].id, None).unwrap();
+        let envelope = build_envelope(&saves[0], &loaded);
+        assert_eq!(envelope.message.as_deref(), Some("share test message"));
+
+        // JSON round-trip.
+        let json = to_json(&envelope).unwrap();
+        let parsed = from_json(&json).unwrap();
+        assert_eq!(parsed.message.as_deref(), Some("share test message"));
+
+        // Text round-trip.
+        let text = to_text(&envelope);
+        let parsed_text = from_text(&text).unwrap();
+        assert_eq!(parsed_text.message.as_deref(), Some("share test message"));
     }
 }

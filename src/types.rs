@@ -43,6 +43,9 @@ pub struct SaveMetadata {
     /// HMAC-SHA256 of metadata fields (empty when encryption is disabled).
     #[serde(default, skip_serializing)]
     pub hmac: String,
+    /// Optional user-provided message describing this save.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 /// Summary of a project for `global` listing.

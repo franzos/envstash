@@ -85,6 +85,7 @@ pub struct SaveInput<'a> {
     pub content_hash: &'a str,
     pub entries: &'a [EnvEntry],
     pub aes_key: Option<&'a [u8; 32]>,
+    pub message: Option<&'a str>,
 }
 
 /// Insert a save and its entries. Returns the save id.
@@ -114,6 +115,37 @@ pub fn insert_save(
             content_hash,
             entries,
             aes_key,
+            message: None,
+        },
+    )
+}
+
+/// Insert a save with an optional message. Returns the save id.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_save_with_message(
+    conn: &Connection,
+    project_path: &str,
+    file_path: &str,
+    branch: &str,
+    commit_hash: &str,
+    timestamp: &str,
+    content_hash: &str,
+    entries: &[EnvEntry],
+    aes_key: Option<&[u8; 32]>,
+    message: Option<&str>,
+) -> Result<i64> {
+    insert_save_input(
+        conn,
+        &SaveInput {
+            project_path,
+            file_path,
+            branch,
+            commit_hash,
+            timestamp,
+            content_hash,
+            entries,
+            aes_key,
+            message,
         },
     )
 }
@@ -130,12 +162,15 @@ fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
         String::new()
     };
 
+    let message_value = input.message.unwrap_or("");
+
     conn.execute(
-        "INSERT INTO saves (project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO saves (project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac, message)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             input.project_path, input.file_path, input.branch,
-            input.commit_hash, input.timestamp, input.content_hash, hmac_value
+            input.commit_hash, input.timestamp, input.content_hash, hmac_value,
+            message_value
         ],
     )?;
 
@@ -159,6 +194,23 @@ fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
     Ok(save_id)
 }
 
+/// Helper to map a row into `SaveMetadata`. Expects columns in the order:
+/// id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac, message
+fn row_to_save_metadata(row: &rusqlite::Row<'_>) -> rusqlite::Result<SaveMetadata> {
+    let message_raw: String = row.get(8)?;
+    Ok(SaveMetadata {
+        id: row.get(0)?,
+        project_path: row.get(1)?,
+        file_path: row.get(2)?,
+        branch: row.get(3)?,
+        commit_hash: row.get(4)?,
+        timestamp: row.get(5)?,
+        content_hash: row.get(6)?,
+        hmac: row.get(7)?,
+        message: if message_raw.is_empty() { None } else { Some(message_raw) },
+    })
+}
+
 /// Read raw bytes from a row column, handling both TEXT and BLOB storage.
 fn read_bytes_from_row(row: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result<Vec<u8>> {
     let val = row.get_ref(idx)?;
@@ -176,6 +228,10 @@ pub fn tests_read_bytes(row: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result
     read_bytes_from_row(row, idx)
 }
 
+/// The column list used in all SELECT queries returning `SaveMetadata`.
+const SAVE_COLUMNS: &str =
+    "id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac, message";
+
 /// List saves matching filters, ordered newest first.
 pub fn list_saves(
     conn: &Connection,
@@ -185,9 +241,8 @@ pub fn list_saves(
     max: usize,
     filter: Option<&str>,
 ) -> Result<Vec<SaveMetadata>> {
-    let mut sql = String::from(
-        "SELECT id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac
-         FROM saves WHERE project_path = ?1",
+    let mut sql = format!(
+        "SELECT {SAVE_COLUMNS} FROM saves WHERE project_path = ?1",
     );
     let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(project_path.to_string())];
     let mut idx = 2;
@@ -218,18 +273,7 @@ pub fn list_saves(
 
     let mut stmt = conn.prepare(&sql)?;
     let params_ref: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
-    let rows = stmt.query_map(params_ref.as_slice(), |row| {
-        Ok(SaveMetadata {
-            id: row.get(0)?,
-            project_path: row.get(1)?,
-            file_path: row.get(2)?,
-            branch: row.get(3)?,
-            commit_hash: row.get(4)?,
-            timestamp: row.get(5)?,
-            content_hash: row.get(6)?,
-            hmac: row.get(7)?,
-        })
-    })?;
+    let rows = stmt.query_map(params_ref.as_slice(), row_to_save_metadata)?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -245,26 +289,18 @@ pub fn list_saves_history(
     exclude_branch: &str,
     max: usize,
 ) -> Result<Vec<SaveMetadata>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac
-         FROM saves
+    let sql = format!(
+        "SELECT {SAVE_COLUMNS} FROM saves
          WHERE project_path = ?1 AND branch != ?2
          ORDER BY timestamp DESC
          LIMIT ?3",
-    )?;
+    );
+    let mut stmt = conn.prepare(&sql)?;
 
-    let rows = stmt.query_map(params![project_path, exclude_branch, max as i64], |row| {
-        Ok(SaveMetadata {
-            id: row.get(0)?,
-            project_path: row.get(1)?,
-            file_path: row.get(2)?,
-            branch: row.get(3)?,
-            commit_hash: row.get(4)?,
-            timestamp: row.get(5)?,
-            content_hash: row.get(6)?,
-            hmac: row.get(7)?,
-        })
-    })?;
+    let rows = stmt.query_map(
+        params![project_path, exclude_branch, max as i64],
+        row_to_save_metadata,
+    )?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -341,13 +377,13 @@ pub fn get_save_by_hash(
     project_path: &str,
     hash: &str,
 ) -> Result<Option<SaveMetadata>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac
-         FROM saves
+    let sql = format!(
+        "SELECT {SAVE_COLUMNS} FROM saves
          WHERE project_path = ?1 AND content_hash LIKE ?2
          ORDER BY timestamp DESC
          LIMIT 1",
-    )?;
+    );
+    let mut stmt = conn.prepare(&sql)?;
 
     // Support prefix match (e.g. "abc..HASH" -> "abc%").
     let pattern = if hash.contains("..") {
@@ -359,16 +395,7 @@ pub fn get_save_by_hash(
 
     let mut rows = stmt.query(params![project_path, pattern])?;
     match rows.next()? {
-        Some(row) => Ok(Some(SaveMetadata {
-            id: row.get(0)?,
-            project_path: row.get(1)?,
-            file_path: row.get(2)?,
-            branch: row.get(3)?,
-            commit_hash: row.get(4)?,
-            timestamp: row.get(5)?,
-            content_hash: row.get(6)?,
-            hmac: row.get(7)?,
-        })),
+        Some(row) => Ok(Some(row_to_save_metadata(row)?)),
         None => Ok(None),
     }
 }
@@ -447,23 +474,12 @@ pub fn get_all_saves(
     aes_key: Option<&[u8; 32]>,
 ) -> Result<Vec<(SaveMetadata, Vec<EnvEntry>)>> {
     let saves = {
-        let mut stmt = conn.prepare(
-            "SELECT id, project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac
-             FROM saves ORDER BY timestamp",
-        )?;
+        let sql = format!(
+            "SELECT {SAVE_COLUMNS} FROM saves ORDER BY timestamp",
+        );
+        let mut stmt = conn.prepare(&sql)?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(SaveMetadata {
-                id: row.get(0)?,
-                project_path: row.get(1)?,
-                file_path: row.get(2)?,
-                branch: row.get(3)?,
-                commit_hash: row.get(4)?,
-                timestamp: row.get(5)?,
-                content_hash: row.get(6)?,
-                hmac: row.get(7)?,
-            })
-        })?;
+        let rows = stmt.query_map([], row_to_save_metadata)?;
 
         let mut results = Vec::new();
         for row in rows {
@@ -516,7 +532,7 @@ pub fn insert_all_saves(
         }
 
         let entries: Vec<EnvEntry> = save.entries.iter().map(EnvEntry::from).collect();
-        insert_save(
+        insert_save_with_message(
             conn,
             &save.project_path,
             &save.file,
@@ -526,6 +542,7 @@ pub fn insert_all_saves(
             &save.content_hash,
             &entries,
             aes_key,
+            save.message.as_deref(),
         )?;
         inserted += 1;
     }
@@ -557,5 +574,37 @@ mod tests {
         let data = format_hmac_data("ab", "c", "d", "ef", "g", "hi");
         // "2:ab|1:c|1:d|2:ef|1:g|2:hi"
         assert_eq!(data, "2:ab|1:c|1:d|2:ef|1:g|2:hi");
+    }
+
+    #[test]
+    fn insert_save_with_message_stores_and_retrieves() {
+        let conn = crate::test_helpers::test_conn();
+        let entries = crate::test_helpers::sample_entries();
+        let id = insert_save_with_message(
+            &conn, "/proj", ".env", "main", "abc",
+            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            Some("trying new DB config"),
+        )
+        .unwrap();
+        assert!(id > 0);
+
+        let saves = list_saves(&conn, "/proj", None, None, 10, None).unwrap();
+        assert_eq!(saves.len(), 1);
+        assert_eq!(saves[0].message.as_deref(), Some("trying new DB config"));
+    }
+
+    #[test]
+    fn insert_save_without_message_returns_none() {
+        let conn = crate::test_helpers::test_conn();
+        let entries = crate::test_helpers::sample_entries();
+        insert_save(
+            &conn, "/proj", ".env", "main", "abc",
+            "2024-01-01T00:00:00Z", "h1", &entries, None,
+        )
+        .unwrap();
+
+        let saves = list_saves(&conn, "/proj", None, None, 10, None).unwrap();
+        assert_eq!(saves.len(), 1);
+        assert_eq!(saves[0].message, None);
     }
 }

@@ -8,7 +8,7 @@ use crate::parser;
 use crate::store::queries;
 
 /// Run the `save` command: read .env from disk, parse, and store.
-pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>) -> Result<()> {
+pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>, message: Option<&str>) -> Result<()> {
     let conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
@@ -32,7 +32,7 @@ pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>) -> Result<()>
 
     let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
 
-    queries::insert_save(
+    queries::insert_save_with_message(
         &conn,
         &project_path,
         &file_path,
@@ -42,8 +42,14 @@ pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>) -> Result<()>
         &hash,
         &entries,
         aes_key.as_ref(),
+        message,
     )?;
 
-    println!("Saved {} ({} variables)", file_path, entries.len());
+    let msg_suffix = match message {
+        Some(m) => format!(" -- {m}"),
+        None => String::new(),
+    };
+
+    println!("Saved {} ({} variables){}", file_path, entries.len(), msg_suffix);
     Ok(())
 }

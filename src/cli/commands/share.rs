@@ -253,6 +253,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "h1".to_string(),
             hmac: String::new(),
+            message: None,
         };
 
         let result = run_safety_checks(&save, Some("main"), "/proj");
@@ -272,6 +273,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "h1".to_string(),
             hmac: String::new(),
+            message: None,
         };
 
         // This passes because there's no file on disk to compare against
@@ -291,6 +293,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "h1".to_string(),
             hmac: String::new(),
+            message: None,
         };
 
         let result = run_safety_checks(&save, Some("main"), "/proj");
@@ -313,6 +316,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: "definitely_not_matching_hash".to_string(),
             hmac: String::new(),
+            message: None,
         };
 
         let result = run_safety_checks(&save, Some("main"), &dir.path().to_string_lossy());
@@ -340,6 +344,7 @@ mod tests {
             timestamp: "2024-01-01T00:00:00Z".to_string(),
             content_hash: hash,
             hmac: String::new(),
+            message: None,
         };
 
         let result = run_safety_checks(&save, Some("main"), &dir.path().to_string_lossy());

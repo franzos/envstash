@@ -115,6 +115,14 @@ pub fn run(
     Ok(())
 }
 
+/// Format the message suffix for display: " -- message" or "".
+fn message_suffix(save: &SaveMetadata) -> String {
+    match &save.message {
+        Some(m) => format!(" -- {m}"),
+        None => String::new(),
+    }
+}
+
 fn print_saves(
     saves: &[SaveMetadata],
     start_num: usize,
@@ -128,29 +136,30 @@ fn print_saves(
             Some(ref h) if *h == save.content_hash => "*",
             _ => "",
         };
+        let msg = message_suffix(save);
 
         if long {
             let hash = output::truncate_hash(&save.content_hash);
             if show_branch && !save.branch.is_empty() {
                 println!(
-                    "{}. {}: {} | {} | {}{}",
-                    num, save.file_path, save.timestamp, hash, save.branch, marker
+                    "{}. {}: {} | {} | {}{}{}",
+                    num, save.file_path, save.timestamp, hash, save.branch, marker, msg
                 );
             } else {
                 println!(
-                    "{}. {}: {} | {}{}",
-                    num, save.file_path, save.timestamp, hash, marker
+                    "{}. {}: {} | {}{}{}",
+                    num, save.file_path, save.timestamp, hash, marker, msg
                 );
             }
         } else if show_branch && !save.branch.is_empty() {
             println!(
-                "{}. {}: {} / {}{}",
-                num, save.file_path, save.timestamp, save.branch, marker
+                "{}. {}: {} / {}{}{}",
+                num, save.file_path, save.timestamp, save.branch, marker, msg
             );
         } else {
             println!(
-                "{}. {}: {}{}",
-                num, save.file_path, save.timestamp, marker
+                "{}. {}: {}{}{}",
+                num, save.file_path, save.timestamp, marker, msg
             );
         }
     }
@@ -180,6 +189,10 @@ fn run_json(
             if !s.commit_hash.is_empty() {
                 obj["commit"] = serde_json::json!(s.commit_hash);
             }
+            obj["message"] = match &s.message {
+                Some(m) => serde_json::json!(m),
+                None => serde_json::Value::Null,
+            };
             obj
         })
         .collect();

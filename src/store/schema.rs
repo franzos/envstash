@@ -19,7 +19,8 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
             commit_hash  TEXT    NOT NULL DEFAULT '',
             timestamp    TEXT    NOT NULL,
             content_hash TEXT    NOT NULL,
-            hmac         TEXT    NOT NULL DEFAULT ''
+            hmac         TEXT    NOT NULL DEFAULT '',
+            message      TEXT    NOT NULL DEFAULT ''
         );
 
         CREATE INDEX IF NOT EXISTS idx_saves_project_branch

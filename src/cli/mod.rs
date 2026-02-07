@@ -42,6 +42,10 @@ pub enum Commands {
     Save {
         /// Path to the .env file (default: .env)
         file: Option<String>,
+
+        /// Optional message describing this save
+        #[arg(short, long)]
+        message: Option<String>,
     },
 
     /// List saved versions
@@ -230,7 +234,9 @@ pub fn run() -> Result<()> {
         Commands::Init { encrypt, recipient } => {
             commands::init::run(&encrypt, &recipient, key_file)
         }
-        Commands::Save { file } => commands::save::run(&cwd, file.as_deref(), key_file),
+        Commands::Save { file, message } => {
+            commands::save::run(&cwd, file.as_deref(), key_file, message.as_deref())
+        }
         Commands::List {
             branch,
             commit,

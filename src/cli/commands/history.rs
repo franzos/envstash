@@ -39,10 +39,14 @@ pub fn run(
         } else {
             format!(" | {}", save.branch)
         };
+        let msg = match &save.message {
+            Some(m) => format!(" -- {m}"),
+            None => String::new(),
+        };
 
         println!(
-            "{}. {}: {} | {}{}",
-            num, save.file_path, save.timestamp, hash, branch_label
+            "{}. {}: {} | {}{}{}",
+            num, save.file_path, save.timestamp, hash, branch_label, msg
         );
 
         // Show diff between this version and the next (older) one.

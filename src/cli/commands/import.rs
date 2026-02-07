@@ -67,8 +67,8 @@ pub fn run(
         );
     }
 
-    // Insert into the store.
-    queries::insert_save(
+    // Insert into the store, preserving message.
+    queries::insert_save_with_message(
         &conn,
         &project_path,
         &envelope.file,
@@ -78,6 +78,7 @@ pub fn run(
         &computed_hash,
         &entries,
         aes_key.as_ref(),
+        envelope.message.as_deref(),
     )?;
 
     println!(
@@ -110,6 +111,7 @@ mod tests {
             commit: "abc123".to_string(),
             timestamp: "2024-06-17T12:00:00Z".to_string(),
             content_hash: "will_be_recomputed".to_string(),
+            message: None,
             entries: vec![
                 ExportEntry {
                     key: "DB_HOST".to_string(),
@@ -415,5 +417,55 @@ mod tests {
         assert!(has_path_traversal("apps/../../.bashrc"));
         assert!(!has_path_traversal(".env"));
         assert!(!has_path_traversal("apps/backend/.env"));
+    }
+
+    // ----- Import preserves message -----
+
+    #[test]
+    fn import_preserves_message_json() {
+        let conn = test_conn();
+        let mut envelope = sample_envelope();
+        envelope.message = Some("important config".to_string());
+        let json = export::to_json(&envelope).unwrap();
+
+        let parsed = export::auto_detect(&json).unwrap();
+        assert_eq!(parsed.message.as_deref(), Some("important config"));
+
+        let entries = export::to_env_entries(&parsed);
+        let hash = crate::parser::content_hash(&entries);
+
+        queries::insert_save_with_message(
+            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
+            &parsed.timestamp, &hash, &entries, None,
+            parsed.message.as_deref(),
+        )
+        .unwrap();
+
+        let saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
+        assert_eq!(saves[0].message.as_deref(), Some("important config"));
+    }
+
+    #[test]
+    fn import_preserves_message_text() {
+        let conn = test_conn();
+        let mut envelope = sample_envelope();
+        envelope.message = Some("text format message".to_string());
+        let text = export::to_text(&envelope);
+
+        let parsed = export::auto_detect(&text).unwrap();
+        assert_eq!(parsed.message.as_deref(), Some("text format message"));
+
+        let entries = export::to_env_entries(&parsed);
+        let hash = crate::parser::content_hash(&entries);
+
+        queries::insert_save_with_message(
+            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
+            &parsed.timestamp, &hash, &entries, None,
+            parsed.message.as_deref(),
+        )
+        .unwrap();
+
+        let saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
+        assert_eq!(saves[0].message.as_deref(), Some("text format message"));
     }
 }
