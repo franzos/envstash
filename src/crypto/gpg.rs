@@ -196,31 +196,14 @@ mod tests {
 
     #[test]
     fn default_recipient_returns_result() {
-        // In a non-git temp dir with isolated git config, signing_key should
-        // be None. Note: we isolate git config to avoid global config leakage.
+        // In a non-git temp dir, signing_key should be None.
         let dir = tempfile::tempdir().unwrap();
 
-        // Run git config in isolated mode to check.
-        let output = Command::new("git")
-            .args(["config", "user.signingkey"])
-            .current_dir(dir.path())
-            .env("GIT_CONFIG_NOSYSTEM", "1")
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .output();
-
-        // default_recipient delegates to git::signing_key, which reads global
-        // config. We just verify it returns Ok (not panic). The actual value
-        // depends on global git config.
+        // default_recipient delegates to git::signing_key. We just verify
+        // it returns Ok (not panic). The actual value depends on global
+        // git config.
         let result = default_recipient(dir.path());
         assert!(result.is_ok());
-
-        // If git has no global signing key, result should be None.
-        if let Ok(out) = output {
-            if !out.status.success() {
-                // no signing key in isolated config, but default_recipient
-                // reads real global config so we can't assert None here.
-            }
-        }
     }
 
     #[test]

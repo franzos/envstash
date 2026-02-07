@@ -30,8 +30,8 @@ pub enum Error {
     #[error("not a git repository")]
     NotAGitRepo,
 
-    #[error("git command failed: {0}")]
-    GitCommand(String),
+    #[error("git error: {0}")]
+    Git(#[from] git2::Error),
 
     #[error("save not found: {0}")]
     SaveNotFound(String),
