@@ -10,6 +10,8 @@ use crate::export::transport;
 use crate::parser;
 use crate::store::queries;
 
+use super::transport as remote;
+
 /// Run the `import` command: read an exported envelope (possibly encrypted)
 /// and insert into the store.
 pub fn run(
@@ -17,19 +19,23 @@ pub fn run(
     file: Option<&str>,
     key_file: Option<&str>,
     transport_password: Option<&str>,
+    from: Option<&str>,
 ) -> Result<()> {
     let conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
     let (project_path, _git_ctx) = cli::resolve_project(cwd)?;
 
-    // Read raw bytes from file or stdin (must be bytes, not string,
-    // because encrypted data is binary).
-    let raw_bytes = match file {
-        Some(path) => std::fs::read(path)?,
-        None => {
-            let mut buf = Vec::new();
-            std::io::stdin().read_to_end(&mut buf)?;
-            buf
+    // Read raw bytes from transport backend, file, or stdin.
+    let raw_bytes = if let Some(source) = from {
+        remote::fetch(source)?
+    } else {
+        match file {
+            Some(path) => std::fs::read(path)?,
+            None => {
+                let mut buf = Vec::new();
+                std::io::stdin().read_to_end(&mut buf)?;
+                buf
+            }
         }
     };
 

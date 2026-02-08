@@ -1,10 +1,14 @@
 use std::io::Write;
 
+use colored::Colorize;
+
 use crate::cli;
 use crate::error::{Error, Result};
 use crate::export;
 use crate::export::transport;
 use crate::store::queries;
+
+use super::transport as remote;
 
 /// Run the `share` command: serialize a saved version to stdout,
 /// optionally encrypting with transport encryption.
@@ -20,6 +24,8 @@ pub fn run(
     recipients: &[String],
     password: Option<&str>,
     force: bool,
+    to: Option<&str>,
+    public: bool,
 ) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let conn = cli::require_store()?;
@@ -63,28 +69,47 @@ pub fn run(
         _ => export::to_text(&envelope),
     };
 
-    if encrypt {
-        let encrypted_bytes = encrypt_export(
+    // Prepare the final bytes (optionally encrypted).
+    let output_bytes = if encrypt {
+        encrypt_export(
             serialized.as_bytes(),
             encryption_method,
             recipients,
             password,
-        )?;
+        )?
+    } else {
+        serialized.into_bytes()
+    };
 
-        // Refuse to write binary encrypted data to a terminal unless --force.
-        if crate::cli::output::is_stdout_terminal() && !force {
+    // Resolve `--to`: empty string means bare `--to` flag, fill from config or fallback.
+    let resolved_to = to.map(|t| {
+        if t.is_empty() {
+            let cfg = crate::config::load();
+            cfg.share
+                .default_to
+                .unwrap_or_else(|| "https://0x0.st".to_string())
+        } else {
+            t.to_string()
+        }
+    });
+
+    // Route through transport backend or write to stdout.
+    if let Some(ref target) = resolved_to {
+        match remote::send(target, &output_bytes, public, Some(&save.content_hash))? {
+            Some(url) => println!("{} {}", "Shared:".green().bold(), url),
+            None => println!("{}", "Shared successfully.".green().bold()),
+        }
+    } else {
+        if encrypt && crate::cli::output::is_stdout_terminal() && !force {
             return Err(Error::Other(
                 "Encrypted output is binary data. Redirect to a file or pipe, \
                  or use --force to output to terminal."
                     .to_string(),
             ));
         }
-
         std::io::stdout()
-            .write_all(&encrypted_bytes)
+            .write_all(&output_bytes)
             .map_err(Error::Io)?;
-    } else {
-        print!("{serialized}");
     }
 
     Ok(())

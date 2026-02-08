@@ -36,8 +36,8 @@ Daily Operations:
   global     List all projects with save counts
 
 Sharing:
-  share      Share a saved .env version (export to stdout)
-  import     Import a shared .env file into the store
+  share      Share a saved .env version (stdout, paste, gist, email, ssh)
+  import     Import a shared .env file (stdin, file, URL, gist, ssh)
 
 Backup & Transfer:
   dump       Export entire store to a file
@@ -191,6 +191,18 @@ pub enum Commands {
     Global,
 
     /// Share a saved .env version (export to stdout)
+    #[command(long_about = "Share a saved .env version.\n\n\
+        By default, outputs to stdout. Use --to to send via a transport backend:\n\n  \
+        --to                       Upload to 0x0.st (or config default)\n  \
+        --to https://my.paste.srv  Upload to a custom paste service\n  \
+        --to gist                  Create a GitHub Gist via gh CLI\n  \
+        --to email:<address>       Send via msmtp or sendmail\n  \
+        --to ssh://user@host       Pipe to remote envstash import via SSH\n\n\
+        Configure defaults and auth in ~/.config/envstash/config.toml:\n\n  \
+        [share]\n  \
+        default_to = \"https://my.paste.service\"\n\n  \
+        [share.headers]\n  \
+        Authorization = \"Bearer mytoken\"")]
     Share {
         /// File path to share (default: latest saved)
         file: Option<String>,
@@ -218,15 +230,28 @@ pub enum Commands {
         /// Force output even when writing encrypted data to a terminal
         #[arg(long)]
         force: bool,
+        /// Send to a remote target instead of stdout
+        #[arg(long, value_name = "TARGET", default_missing_value = "", num_args = 0..=1)]
+        to: Option<String>,
+        /// Create a public gist (default: secret). Only used with --to gist.
+        #[arg(long)]
+        public: bool,
     },
 
     /// Import a shared .env file into the store
+    #[command(long_about = "Import a shared .env file into the store.\n\n\
+        By default, reads from a file or stdin. Use --from to fetch via a transport backend:\n\n  \
+        --from https://<url>       Fetch via curl (paste URLs, raw gist URLs, etc.)\n  \
+        --from ssh://user@host     Pipe from remote envstash share via SSH")]
     Import {
         /// Path to import file (reads from stdin if omitted)
         file: Option<String>,
         /// Password for decrypting password-encrypted imports
         #[arg(long)]
         password: Option<String>,
+        /// Fetch from a remote source instead of stdin/file
+        #[arg(long, value_name = "SOURCE")]
+        from: Option<String>,
     },
 
     /// Export entire store to a file
@@ -355,6 +380,8 @@ pub fn run() -> Result<()> {
             recipient,
             password,
             force,
+            to,
+            public,
         } => commands::share::run(
             file.as_deref(),
             hash.as_deref(),
@@ -366,10 +393,20 @@ pub fn run() -> Result<()> {
             &recipient,
             password.as_deref(),
             force,
+            to.as_deref(),
+            public,
         ),
-        Commands::Import { file, password } => {
-            commands::import::run(&cwd, file.as_deref(), key_file, password.as_deref())
-        }
+        Commands::Import {
+            file,
+            password,
+            from,
+        } => commands::import::run(
+            &cwd,
+            file.as_deref(),
+            key_file,
+            password.as_deref(),
+            from.as_deref(),
+        ),
         Commands::Dump {
             path,
             encrypt,
