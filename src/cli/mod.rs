@@ -23,16 +23,18 @@ use crate::types::{EnvEntry, GitContext, SaveMetadata};
 {about-with-newline}
 {usage-heading} {usage}
 
-Daily Operations:
+Setup:
   init       Initialize the envstash store
+
+Daily Operations:
   save       Save the current .env file
-  list       List saved versions
+  ls         List saved versions
   diff       Show diff between two versions or files
-  apply      Apply a saved version to disk
+  checkout   Apply a saved version to disk
   env        Print export statements for a saved version
   exec       Run a command with saved environment variables
-  history    Show history with diffs between consecutive versions
-  delete     Delete saved versions
+  log        Show history with diffs between consecutive versions
+  rm         Delete saved versions
   global     List all projects with save counts
 
 Sharing:
@@ -79,6 +81,7 @@ pub enum Commands {
     },
 
     /// List saved versions
+    #[command(name = "ls", alias = "list")]
     List {
         /// List versions for a specific branch
         #[arg(short, long)]
@@ -115,6 +118,7 @@ pub enum Commands {
     },
 
     /// Apply a saved version to disk
+    #[command(name = "checkout", alias = "co", alias = "apply")]
     Apply {
         /// Version number or hash
         version: String,
@@ -154,6 +158,7 @@ pub enum Commands {
     },
 
     /// Show history with diffs between consecutive versions
+    #[command(name = "log", alias = "history")]
     History {
         /// Filter by branch
         #[arg(short, long)]
@@ -173,6 +178,7 @@ pub enum Commands {
     },
 
     /// Delete saved versions
+    #[command(name = "rm", alias = "delete")]
     Delete {
         /// Version number to delete
         version: Option<String>,

@@ -57,10 +57,10 @@ envstash save
 envstash save -m "trying new DB config"
 
 # List saved versions
-envstash list
+envstash ls
 
 # Restore a saved version
-envstash apply 1
+envstash checkout 1
 
 # See what changed between versions
 envstash diff 1 2
@@ -81,13 +81,13 @@ envstash diff 1 2
 |---------|-------------|
 | `envstash init` | Initialize the store (choose encryption mode) |
 | `envstash save [file] [-m msg]` | Save a `.env` file with optional message |
-| `envstash list` | List saved versions on the current branch |
+| `envstash ls` | List saved versions on the current branch |
 | `envstash diff <a> <b>` | Diff two versions (by number or hash) |
-| `envstash apply <version>` | Restore a version to disk |
+| `envstash checkout <version>` | Restore a version to disk |
 | `envstash env [version]` | Print `export` statements for shell eval |
 | `envstash exec [version] -- <cmd>` | Run a command with saved env vars |
-| `envstash history` | Show what changed between consecutive versions |
-| `envstash delete <version>` | Remove saved versions |
+| `envstash log` | Show what changed between consecutive versions |
+| `envstash rm <version>` | Remove saved versions |
 | `envstash global` | List all projects with saved .env files |
 | `envstash share [--to <target>]` | Export a version for sharing |
 | `envstash import [--from <source>]` | Import a shared export |

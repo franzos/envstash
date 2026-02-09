@@ -1,3 +1,10 @@
+## [0.1.5] - 2026-02-09
+
+### Changed
+- CLI commands renamed to follow Unix conventions: `list` → `ls`, `delete` → `rm`, `history` → `log`, `apply` → `checkout` (`co`)
+- Old command names still work as hidden aliases
+- `init` moved to its own "Setup" section in `--help`
+
 ## [0.1.4] - 2026-02-08
 
 ### Changed
