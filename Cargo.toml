@@ -1,6 +1,6 @@
 [package]
 name = "envstash"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 authors = ["Franz Geffke <mail@gofranz.com>"]
 description = "Manage .env files across git branches with versioning, diffing, and optional encryption"

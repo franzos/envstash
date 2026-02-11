@@ -243,6 +243,7 @@ mod tests {
     // -- integration: 0x0.st paste round-trip --
 
     #[test]
+    #[ignore] // requires network access
     fn paste_0x0_round_trip() {
         let env_entries = vec![
             crate::types::EnvEntry {
@@ -303,6 +304,7 @@ mod tests {
     // -- integration: GitHub Gist round-trip (skipped if gh unavailable) --
 
     #[test]
+    #[ignore] // requires network access + gh auth
     fn gist_round_trip() {
         if !gist::is_available() {
             eprintln!("gh CLI not available, skipping gist round-trip test");

@@ -229,6 +229,10 @@ Data lives in `~/.local/share/envstash/`:
 
 ```bash
 cargo build --release
+cargo test
+
+# Network-dependent tests (paste, gist) are ignored by default
+cargo test -- --ignored
 ```
 
 ## License

@@ -1,4 +1,9 @@
-## [0.1.6] - 2026-02-10
+## [0.1.7] - 2026-02-11
+
+### Fixed
+- Network-dependent tests (paste, gist) skipped in CI
+
+## [0.1.6] - 2026-02-09
 
 ### Added
 - Shell tab-completion for version hashes (bash, zsh, fish)
@@ -14,12 +19,11 @@
 ## [0.1.5] - 2026-02-09
 
 ### Changed
-- CLI commands renamed to follow Unix conventions: 
+- CLI commands renamed to follow Unix conventions:
   - `list` → `ls`
   - `delete` → `rm`
   - `history` → `log`
   - `apply` → `checkout` (`co`)
-- Config section `[share]` → `[send]`
 - Old command names still work as hidden aliases
 - `init` moved to its own "Setup" section in `--help`
 
