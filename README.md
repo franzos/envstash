@@ -1,6 +1,11 @@
 # envstash
 
-A CLI tool for managing `.env` files across git branches. Save, version, diff, restore, and share environment variables with optional encryption.
+<p align="center">
+  <img src="assets/logo.svg" alt="envstash" width="480">
+</p>
+<p align="center">
+  A CLI tool for managing <code>.env</code> files across git branches. Save, version, diff, restore, and share environment variables with optional encryption.
+</p>
 
 ## Install
 
