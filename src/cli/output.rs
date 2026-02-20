@@ -112,15 +112,12 @@ pub fn format_diff_json(result: &DiffResult, full: bool) -> crate::error::Result
             .iter()
             .map(|e| serde_json::json!({"key": e.key, "value": e.value, "comment": e.comment}))
             .collect();
-        output.insert(
-            "unchanged".to_string(),
-            serde_json::Value::Array(unchanged),
-        );
+        output.insert("unchanged".to_string(), serde_json::Value::Array(unchanged));
     }
 
-    Ok(serde_json::to_string_pretty(
-        &serde_json::Value::Object(output),
-    )?)
+    Ok(serde_json::to_string_pretty(&serde_json::Value::Object(
+        output,
+    ))?)
 }
 
 #[cfg(test)]

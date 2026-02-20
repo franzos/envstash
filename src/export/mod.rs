@@ -193,9 +193,9 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
     let mut lines = input.lines();
 
     // Expect header line.
-    let first = lines.next().ok_or_else(|| {
-        Error::Other("empty export text".to_string())
-    })?;
+    let first = lines
+        .next()
+        .ok_or_else(|| Error::Other("empty export text".to_string()))?;
     if first.trim() != TEXT_HEADER_PREFIX {
         return Err(Error::Other(format!(
             "invalid export text: expected '{TEXT_HEADER_PREFIX}', got '{first}'"
@@ -223,9 +223,10 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
             }
             if let Some(rest) = trimmed.strip_prefix("# ") {
                 if let Some(val) = rest.strip_prefix("version: ") {
-                    version = Some(val.parse::<u32>().map_err(|e| {
-                        Error::Other(format!("invalid version: {e}"))
-                    })?);
+                    version = Some(
+                        val.parse::<u32>()
+                            .map_err(|e| Error::Other(format!("invalid version: {e}")))?,
+                    );
                 } else if let Some(val) = rest.strip_prefix("file: ") {
                     file = val.to_string();
                 } else if let Some(val) = rest.strip_prefix("branch: ") {
@@ -245,9 +246,8 @@ pub fn from_text(input: &str) -> Result<ExportEnvelope> {
         }
     }
 
-    let version = version.ok_or_else(|| {
-        Error::Other("missing version in export text".to_string())
-    })?;
+    let version =
+        version.ok_or_else(|| Error::Other("missing version in export text".to_string()))?;
 
     // Parse entries from the body using the parser module.
     let body = body_lines.join("\n");
@@ -550,10 +550,7 @@ mod tests {
         };
         let json = to_json(&envelope).unwrap();
         let parsed = from_json(&json).unwrap();
-        assert_eq!(
-            parsed.entries[0].value,
-            "postgres://user:p@ss=w0rd@host/db"
-        );
+        assert_eq!(parsed.entries[0].value, "postgres://user:p@ss=w0rd@host/db");
     }
 
     #[test]
@@ -574,10 +571,7 @@ mod tests {
         };
         let text = to_text(&envelope);
         let parsed = from_text(&text).unwrap();
-        assert_eq!(
-            parsed.entries[0].value,
-            "postgres://host/db?opt=val"
-        );
+        assert_eq!(parsed.entries[0].value, "postgres://host/db?opt=val");
     }
 
     // ----- Full round-trip: save -> share -> import -----
@@ -587,16 +581,21 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         let _id = crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc123",
-            "2024-06-17T12:00:00Z", "hashvalue", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc123",
+            "2024-06-17T12:00:00Z",
+            "hashvalue",
+            &entries,
+            None,
         )
         .unwrap();
 
         // Simulate share: load from store, build envelope, serialize.
-        let saves = crate::store::queries::list_saves(
-            &conn, "/proj", Some("main"), None, 1, None,
-        )
-        .unwrap();
+        let saves =
+            crate::store::queries::list_saves(&conn, "/proj", Some("main"), None, 1, None).unwrap();
         let save = &saves[0];
         let loaded = crate::store::queries::get_save_entries(&conn, save.id, None).unwrap();
         let envelope = build_envelope(save, &loaded);
@@ -630,15 +629,20 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "dev", "def456",
-            "2024-06-17T12:00:00Z", "hashval2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "def456",
+            "2024-06-17T12:00:00Z",
+            "hashval2",
+            &entries,
+            None,
         )
         .unwrap();
 
-        let saves = crate::store::queries::list_saves(
-            &conn, "/proj", Some("dev"), None, 1, None,
-        )
-        .unwrap();
+        let saves =
+            crate::store::queries::list_saves(&conn, "/proj", Some("dev"), None, 1, None).unwrap();
         let save = &saves[0];
         let loaded = crate::store::queries::get_save_entries(&conn, save.id, None).unwrap();
         let envelope = build_envelope(save, &loaded);
@@ -669,17 +673,23 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-06-17T12:00:00Z", "hash1", &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-06-17T12:00:00Z",
+            "hash1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
         // Share: decrypt from store, build envelope.
-        let saves = crate::store::queries::list_saves(
-            &conn, "/proj", Some("main"), None, 1, None,
-        )
-        .unwrap();
-        let loaded = crate::store::queries::get_save_entries(&conn, saves[0].id, Some(&key)).unwrap();
+        let saves =
+            crate::store::queries::list_saves(&conn, "/proj", Some("main"), None, 1, None).unwrap();
+        let loaded =
+            crate::store::queries::get_save_entries(&conn, saves[0].id, Some(&key)).unwrap();
         let envelope = build_envelope(&saves[0], &loaded);
         let json = to_json(&envelope).unwrap();
 
@@ -700,14 +710,10 @@ mod tests {
         .unwrap();
 
         // Verify: decrypt and compare.
-        let reimported = crate::store::queries::list_saves(
-            &conn, "/proj2", None, None, 1, None,
-        )
-        .unwrap();
-        let reimported_entries = crate::store::queries::get_save_entries(
-            &conn, reimported[0].id, Some(&key),
-        )
-        .unwrap();
+        let reimported =
+            crate::store::queries::list_saves(&conn, "/proj2", None, None, 1, None).unwrap();
+        let reimported_entries =
+            crate::store::queries::get_save_entries(&conn, reimported[0].id, Some(&key)).unwrap();
         assert_eq!(reimported_entries, entries);
     }
 
@@ -792,13 +798,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         crate::store::queries::insert_save(
-            &conn, "/proj2", ".env", "dev", "a2",
-            "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj2",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -831,8 +851,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -863,8 +890,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -893,8 +927,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -973,8 +1014,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save_with_message(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
             Some("initial config"),
         )
         .unwrap();
@@ -1007,17 +1055,22 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         crate::store::queries::insert_save_with_message(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-06-17T12:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-06-17T12:00:00Z",
+            "h1",
+            &entries,
+            None,
             Some("share test message"),
         )
         .unwrap();
 
         // Share.
-        let saves = crate::store::queries::list_saves(
-            &conn, "/proj", Some("main"), None, 1, None,
-        )
-        .unwrap();
+        let saves =
+            crate::store::queries::list_saves(&conn, "/proj", Some("main"), None, 1, None).unwrap();
         let loaded = crate::store::queries::get_save_entries(&conn, saves[0].id, None).unwrap();
         let envelope = build_envelope(&saves[0], &loaded);
         assert_eq!(envelope.message.as_deref(), Some("share test message"));

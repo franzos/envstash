@@ -26,8 +26,7 @@ pub fn run(
         None
     };
 
-    let saves =
-        queries::list_saves(&conn, &project_path, query_branch, commit, max, filter)?;
+    let saves = queries::list_saves(&conn, &project_path, query_branch, commit, max, filter)?;
 
     if saves.is_empty() {
         println!("No saved versions found.");
@@ -60,8 +59,7 @@ pub fn run(
         // Show diff between this version and the next (older) one.
         if i + 1 < saves.len() {
             let entries_new = cli::load_entries(&conn, save, aes_key.as_ref())?;
-            let entries_old =
-                cli::load_entries(&conn, &saves[i + 1], aes_key.as_ref())?;
+            let entries_old = cli::load_entries(&conn, &saves[i + 1], aes_key.as_ref())?;
             let diff_result = crate::diff::diff(&entries_old, &entries_new);
 
             let diff_text = output::format_diff_text(&diff_result, false);

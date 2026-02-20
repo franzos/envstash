@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use colored::Colorize;
-use comfy_table::{presets, Table};
+use comfy_table::{Table, presets};
 
 use crate::cli::{self, output};
 use crate::error::Result;
@@ -56,8 +56,7 @@ pub fn run(
 
     // Explicit commit query.
     if commit.is_some() && git_ctx.is_some() {
-        let saves =
-            queries::list_saves(&conn, &project_path, None, commit, max, filter)?;
+        let saves = queries::list_saves(&conn, &project_path, None, commit, max, filter)?;
         if saves.is_empty() {
             println!("No saved versions for commit '{}'.", commit.unwrap_or(""));
         } else {
@@ -76,8 +75,7 @@ pub fn run(
 
     // Non-git: show all saves without branch logic.
     if git_ctx.is_none() {
-        let saves =
-            queries::list_saves(&conn, &project_path, None, None, max, filter)?;
+        let saves = queries::list_saves(&conn, &project_path, None, None, max, filter)?;
         if saves.is_empty() {
             println!("No saved versions.");
         } else {
@@ -88,13 +86,11 @@ pub fn run(
 
     // Git context: current branch + cross-branch history.
     let cb = current_branch.unwrap_or("");
-    let branch_saves =
-        queries::list_saves(&conn, &project_path, Some(cb), None, max, filter)?;
+    let branch_saves = queries::list_saves(&conn, &project_path, Some(cb), None, max, filter)?;
 
     if branch_saves.is_empty() {
         println!("No saved versions of .env file in this branch.");
-        let history =
-            queries::list_saves_history(&conn, &project_path, cb, max)?;
+        let history = queries::list_saves_history(&conn, &project_path, cb, max)?;
         if !history.is_empty() {
             println!();
             println!("{}", "History:".bold());
@@ -104,8 +100,7 @@ pub fn run(
         print_saves(&branch_saves, 1, long, &project_path, false);
         let remaining = max.saturating_sub(branch_saves.len());
         if remaining > 0 {
-            let history =
-                queries::list_saves_history(&conn, &project_path, cb, remaining)?;
+            let history = queries::list_saves_history(&conn, &project_path, cb, remaining)?;
             if !history.is_empty() {
                 println!();
                 println!("{}", "History:".bold());
@@ -214,13 +209,7 @@ fn print_saves_table(
                 msg,
             ]);
         } else {
-            table.add_row(vec![
-                &num,
-                &hash,
-                &save.file_path,
-                &save.timestamp,
-                msg,
-            ]);
+            table.add_row(vec![&num, &hash, &save.file_path, &save.timestamp, msg]);
         }
     }
 

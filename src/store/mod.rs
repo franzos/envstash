@@ -81,7 +81,10 @@ mod tests {
     fn config_round_trip() {
         let conn = test_conn();
         queries::set_config(&conn, "foo", "bar").unwrap();
-        assert_eq!(queries::get_config(&conn, "foo").unwrap(), Some("bar".to_string()));
+        assert_eq!(
+            queries::get_config(&conn, "foo").unwrap(),
+            Some("bar".to_string())
+        );
     }
 
     #[test]
@@ -89,7 +92,10 @@ mod tests {
         let conn = test_conn();
         queries::set_config(&conn, "foo", "bar").unwrap();
         queries::set_config(&conn, "foo", "baz").unwrap();
-        assert_eq!(queries::get_config(&conn, "foo").unwrap(), Some("baz".to_string()));
+        assert_eq!(
+            queries::get_config(&conn, "foo").unwrap(),
+            Some("baz".to_string())
+        );
     }
 
     #[test]
@@ -107,7 +113,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc123", "2024-06-17T12:00:00Z", "hash1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc123",
+            "2024-06-17T12:00:00Z",
+            "hash1",
+            &entries,
+            None,
         )
         .unwrap();
         assert!(id > 0);
@@ -123,11 +137,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -144,11 +174,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "commit1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "commit1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "commit2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "commit2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -185,11 +231,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".db-env", "main", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".db-env",
+            "main",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -203,15 +265,39 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a2", "2024-01-03T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a2",
+            "2024-01-03T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a3", "2024-01-02T00:00:00Z", "h3", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a3",
+            "2024-01-02T00:00:00Z",
+            "h3",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -230,7 +316,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -254,7 +348,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "deadbeef1234", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "deadbeef1234",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -268,7 +370,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "deadbeef1234", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "deadbeef1234",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -292,11 +402,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -314,7 +440,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -339,15 +473,39 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "a3", "2024-01-03T00:00:00Z", "h3", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "a3",
+            "2024-01-03T00:00:00Z",
+            "h3",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -364,11 +522,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/other", ".env", "main", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/other",
+            ".env",
+            "main",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -392,15 +566,39 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a2", "2024-01-03T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a2",
+            "2024-01-03T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj2", ".env", "main", "a3", "2024-01-02T00:00:00Z", "h3", &entries, None,
+            &conn,
+            "/proj2",
+            ".env",
+            "main",
+            "a3",
+            "2024-01-02T00:00:00Z",
+            "h3",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -430,11 +628,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj2", ".env", "dev", "a2", "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj2",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -454,8 +668,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -473,8 +694,15 @@ mod tests {
             value: "super_secret_value".to_string(),
         }];
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -513,8 +741,15 @@ mod tests {
         let key2 = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key1),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key1),
         )
         .unwrap();
 
@@ -528,14 +763,28 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
         let saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
-        assert!(!saves[0].hmac.is_empty(), "HMAC should be set for encrypted saves");
-        assert_eq!(saves[0].hmac.len(), 64, "HMAC should be 64 hex chars (SHA-256)");
+        assert!(
+            !saves[0].hmac.is_empty(),
+            "HMAC should be set for encrypted saves"
+        );
+        assert_eq!(
+            saves[0].hmac.len(),
+            64,
+            "HMAC should be 64 hex chars (SHA-256)"
+        );
     }
 
     #[test]
@@ -543,13 +792,23 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
         let saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
-        assert!(saves[0].hmac.is_empty(), "HMAC should be empty for plaintext saves");
+        assert!(
+            saves[0].hmac.is_empty(),
+            "HMAC should be empty for plaintext saves"
+        );
     }
 
     #[test]
@@ -558,8 +817,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -573,8 +839,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -601,8 +874,15 @@ mod tests {
         let key2 = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key1),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key1),
         )
         .unwrap();
 
@@ -617,8 +897,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -642,13 +929,27 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj2", ".env", "dev", "a2", "2024-01-02T00:00:00Z", "h2",
-            &entries, Some(&key),
+            &conn,
+            "/proj2",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -668,8 +969,15 @@ mod tests {
             value: String::new(),
         }];
         let id = queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc", "2024-01-01T00:00:00Z", "h1",
-            &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 

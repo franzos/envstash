@@ -44,7 +44,14 @@ fn format_hmac_data(
     timestamp: &str,
     content_hash: &str,
 ) -> String {
-    let fields = [project_path, file_path, branch, commit_hash, timestamp, content_hash];
+    let fields = [
+        project_path,
+        file_path,
+        branch,
+        commit_hash,
+        timestamp,
+        content_hash,
+    ];
     fields
         .iter()
         .map(|f| format!("{}:{f}", f.len()))
@@ -154,8 +161,12 @@ pub fn insert_save_with_message(
 fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
     let hmac_value = if let Some(key) = input.aes_key {
         let data = format_hmac_data(
-            input.project_path, input.file_path, input.branch,
-            input.commit_hash, input.timestamp, input.content_hash,
+            input.project_path,
+            input.file_path,
+            input.branch,
+            input.commit_hash,
+            input.timestamp,
+            input.content_hash,
         );
         crate::crypto::hmac::compute_hmac(key, data.as_bytes())?
     } else {
@@ -176,9 +187,8 @@ fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
 
     let save_id = conn.last_insert_rowid();
 
-    let mut stmt = conn.prepare(
-        "INSERT INTO entries (save_id, key, value, comment) VALUES (?1, ?2, ?3, ?4)",
-    )?;
+    let mut stmt =
+        conn.prepare("INSERT INTO entries (save_id, key, value, comment) VALUES (?1, ?2, ?3, ?4)")?;
 
     for entry in input.entries {
         let comment_str = entry.comment.as_deref().unwrap_or("");
@@ -207,7 +217,11 @@ fn row_to_save_metadata(row: &rusqlite::Row<'_>) -> rusqlite::Result<SaveMetadat
         timestamp: row.get(5)?,
         content_hash: row.get(6)?,
         hmac: row.get(7)?,
-        message: if message_raw.is_empty() { None } else { Some(message_raw) },
+        message: if message_raw.is_empty() {
+            None
+        } else {
+            Some(message_raw)
+        },
     })
 }
 
@@ -241,10 +255,9 @@ pub fn list_saves(
     max: usize,
     filter: Option<&str>,
 ) -> Result<Vec<SaveMetadata>> {
-    let mut sql = format!(
-        "SELECT {SAVE_COLUMNS} FROM saves WHERE project_path = ?1",
-    );
-    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(project_path.to_string())];
+    let mut sql = format!("SELECT {SAVE_COLUMNS} FROM saves WHERE project_path = ?1",);
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> =
+        vec![Box::new(project_path.to_string())];
     let mut idx = 2;
 
     if let Some(b) = branch {
@@ -277,7 +290,8 @@ pub fn list_saves(
     sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT {max}"));
 
     let mut stmt = conn.prepare(&sql)?;
-    let params_ref: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    let params_ref: Vec<&dyn rusqlite::types::ToSql> =
+        param_values.iter().map(|p| p.as_ref()).collect();
     let rows = stmt.query_map(params_ref.as_slice(), row_to_save_metadata)?;
 
     let mut results = Vec::new();
@@ -323,9 +337,8 @@ pub fn get_save_entries(
     save_id: i64,
     aes_key: Option<&[u8; 32]>,
 ) -> Result<Vec<EnvEntry>> {
-    let mut stmt = conn.prepare(
-        "SELECT key, value, comment FROM entries WHERE save_id = ?1 ORDER BY id",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT key, value, comment FROM entries WHERE save_id = ?1 ORDER BY id")?;
 
     // Read raw data first (handles both TEXT and BLOB column types).
     let raw_rows: Vec<(String, Vec<u8>, Vec<u8>)> = {
@@ -474,9 +487,7 @@ pub fn get_all_saves(
     aes_key: Option<&[u8; 32]>,
 ) -> Result<Vec<(SaveMetadata, Vec<EnvEntry>)>> {
     let saves = {
-        let sql = format!(
-            "SELECT {SAVE_COLUMNS} FROM saves ORDER BY timestamp",
-        );
+        let sql = format!("SELECT {SAVE_COLUMNS} FROM saves ORDER BY timestamp",);
         let mut stmt = conn.prepare(&sql)?;
 
         let rows = stmt.query_map([], row_to_save_metadata)?;
@@ -501,14 +512,9 @@ pub fn get_all_saves(
 // ---------------------------------------------------------------------------
 
 /// Check if a save with the given content hash already exists in a project.
-fn has_save_with_hash(
-    conn: &Connection,
-    project_path: &str,
-    content_hash: &str,
-) -> Result<bool> {
-    let mut stmt = conn.prepare(
-        "SELECT 1 FROM saves WHERE project_path = ?1 AND content_hash = ?2 LIMIT 1",
-    )?;
+fn has_save_with_hash(conn: &Connection, project_path: &str, content_hash: &str) -> Result<bool> {
+    let mut stmt =
+        conn.prepare("SELECT 1 FROM saves WHERE project_path = ?1 AND content_hash = ?2 LIMIT 1")?;
     let exists = stmt.exists(params![project_path, content_hash])?;
     Ok(exists)
 }
@@ -559,7 +565,10 @@ mod tests {
         // Verify that length-prefixed encoding prevents delimiter confusion.
         let a = format_hmac_data("a|b", "c", "", "", "", "");
         let b = format_hmac_data("a", "b|c", "", "", "", "");
-        assert_ne!(a, b, "Length-prefixed HMAC data should distinguish fields with | in values");
+        assert_ne!(
+            a, b,
+            "Length-prefixed HMAC data should distinguish fields with | in values"
+        );
     }
 
     #[test]
@@ -581,8 +590,15 @@ mod tests {
         let conn = crate::test_helpers::test_conn();
         let entries = crate::test_helpers::sample_entries();
         let id = insert_save_with_message(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
             Some("trying new DB config"),
         )
         .unwrap();
@@ -598,8 +614,15 @@ mod tests {
         let conn = crate::test_helpers::test_conn();
         let entries = crate::test_helpers::sample_entries();
         insert_save(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 

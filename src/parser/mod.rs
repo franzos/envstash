@@ -47,7 +47,9 @@ pub fn parse(input: &str) -> Result<Vec<EnvEntry>> {
 
 /// Try to parse a line as `[export] KEY=VALUE`.
 fn parse_assignment(line: &str, comment: &Option<String>) -> Option<EnvEntry> {
-    let line = line.strip_prefix("export").map_or(line, |rest| rest.trim_start());
+    let line = line
+        .strip_prefix("export")
+        .map_or(line, |rest| rest.trim_start());
 
     let eq_pos = line.find('=')?;
     let key = line[..eq_pos].trim();
@@ -149,7 +151,10 @@ mod tests {
         let input = "# Database configuration\nDB_HOST=localhost\n";
         let entries = parse(input).unwrap();
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].comment, Some("Database configuration".to_string()));
+        assert_eq!(
+            entries[0].comment,
+            Some("Database configuration".to_string())
+        );
         assert_eq!(entries[0].key, "DB_HOST");
     }
 
@@ -190,10 +195,7 @@ mod tests {
         let input = "CONNECTION=postgres://user:pass@host/db?opt=val\n";
         let entries = parse(input).unwrap();
         assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].value,
-            "postgres://user:pass@host/db?opt=val"
-        );
+        assert_eq!(entries[0].value, "postgres://user:pass@host/db?opt=val");
     }
 
     #[test]
@@ -250,15 +252,31 @@ mod tests {
     #[test]
     fn content_hash_deterministic() {
         let entries = vec![
-            EnvEntry { comment: None, key: "B".to_string(), value: "2".to_string() },
-            EnvEntry { comment: None, key: "A".to_string(), value: "1".to_string() },
+            EnvEntry {
+                comment: None,
+                key: "B".to_string(),
+                value: "2".to_string(),
+            },
+            EnvEntry {
+                comment: None,
+                key: "A".to_string(),
+                value: "1".to_string(),
+            },
         ];
         let h1 = content_hash(&entries);
 
         // Same entries in different order should produce the same hash.
         let entries_reversed = vec![
-            EnvEntry { comment: None, key: "A".to_string(), value: "1".to_string() },
-            EnvEntry { comment: None, key: "B".to_string(), value: "2".to_string() },
+            EnvEntry {
+                comment: None,
+                key: "A".to_string(),
+                value: "1".to_string(),
+            },
+            EnvEntry {
+                comment: None,
+                key: "B".to_string(),
+                value: "2".to_string(),
+            },
         ];
         let h2 = content_hash(&entries_reversed);
         assert_eq!(h1, h2);
@@ -266,8 +284,16 @@ mod tests {
 
     #[test]
     fn content_hash_changes_with_value() {
-        let e1 = vec![EnvEntry { comment: None, key: "A".to_string(), value: "1".to_string() }];
-        let e2 = vec![EnvEntry { comment: None, key: "A".to_string(), value: "2".to_string() }];
+        let e1 = vec![EnvEntry {
+            comment: None,
+            key: "A".to_string(),
+            value: "1".to_string(),
+        }];
+        let e2 = vec![EnvEntry {
+            comment: None,
+            key: "A".to_string(),
+            value: "2".to_string(),
+        }];
         assert_ne!(content_hash(&e1), content_hash(&e2));
     }
 

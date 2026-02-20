@@ -40,17 +40,10 @@ pub fn run(
             .ok_or_else(|| Error::SaveNotFound(h.to_string()))?
     } else {
         // Find the latest save, optionally filtered by file path.
-        let file_filter = file.map(|f| {
-            cli::resolve_file_path(f, &cwd, &git_ctx)
-                .unwrap_or_else(|_| f.to_string())
-        });
+        let file_filter = file
+            .map(|f| cli::resolve_file_path(f, &cwd, &git_ctx).unwrap_or_else(|_| f.to_string()));
 
-        find_latest_save(
-            &conn,
-            &project_path,
-            current_branch,
-            file_filter.as_deref(),
-        )?
+        find_latest_save(&conn, &project_path, current_branch, file_filter.as_deref())?
     };
 
     // Safety checks (unless --ignore).
@@ -146,14 +139,7 @@ fn find_latest_save(
 ) -> Result<crate::types::SaveMetadata> {
     // Try current branch first.
     if let Some(branch) = current_branch {
-        let saves = queries::list_saves(
-            conn,
-            project_path,
-            Some(branch),
-            None,
-            1,
-            file_filter,
-        )?;
+        let saves = queries::list_saves(conn, project_path, Some(branch), None, 1, file_filter)?;
         if let Some(save) = saves.into_iter().next() {
             return Ok(save);
         }
@@ -210,13 +196,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a2",
-            "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -229,8 +229,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -250,13 +257,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj", ".db-env", "main", "a2",
-            "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".db-env",
+            "main",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -378,8 +399,7 @@ mod tests {
     #[test]
     fn encrypt_export_password() {
         let data = b"# envstash export\nDB_HOST=localhost\n";
-        let encrypted = encrypt_export(data, "password", &[], Some("test-pw"))
-            .unwrap();
+        let encrypted = encrypt_export(data, "password", &[], Some("test-pw")).unwrap();
         assert!(encrypted.starts_with(b"EVPW"));
 
         // Decrypt and verify round-trip.
@@ -401,13 +421,9 @@ mod tests {
 
     #[test]
     fn resolve_gpg_recipients_explicit() {
-        use std::path::Path;
         use crate::crypto::gpg;
-        let result = gpg::resolve_recipients(
-            &["ABCD1234".to_string()],
-            Path::new("/tmp"),
-        )
-        .unwrap();
+        use std::path::Path;
+        let result = gpg::resolve_recipients(&["ABCD1234".to_string()], Path::new("/tmp")).unwrap();
         assert_eq!(result, vec!["ABCD1234".to_string()]);
     }
 
@@ -416,8 +432,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-06-17T12:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-06-17T12:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -446,8 +469,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "def",
-            "2024-06-17T12:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "def",
+            "2024-06-17T12:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 

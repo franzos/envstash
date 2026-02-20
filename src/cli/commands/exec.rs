@@ -28,8 +28,7 @@ pub fn run(
         cli::load_entries(&conn, &save, aes_key.as_ref())?
     } else {
         let branch = current_branch.unwrap_or("");
-        let saves =
-            queries::list_saves(&conn, &project_path, Some(branch), None, 1, None)?;
+        let saves = queries::list_saves(&conn, &project_path, Some(branch), None, 1, None)?;
         let save = saves
             .first()
             .ok_or_else(|| Error::SaveNotFound("no saves on current branch".to_string()))?;

@@ -121,7 +121,9 @@ pub fn gpg_encrypt(data: &[u8], recipients: &[String]) -> Result<Vec<u8>> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
 
     // Write data to gpg's stdin.
     if let Some(ref mut stdin) = child.stdin {
@@ -160,7 +162,9 @@ pub fn gpg_decrypt(data: &[u8]) -> Result<Vec<u8>> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
 
     if let Some(ref mut stdin) = child.stdin {
         use std::io::Write;
@@ -266,11 +270,7 @@ mod tests {
 
     #[test]
     fn resolve_recipients_explicit() {
-        let result = resolve_recipients(
-            &["ABCD1234".to_string()],
-            Path::new("/tmp"),
-        )
-        .unwrap();
+        let result = resolve_recipients(&["ABCD1234".to_string()], Path::new("/tmp")).unwrap();
         assert_eq!(result, vec!["ABCD1234".to_string()]);
     }
 

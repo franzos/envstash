@@ -18,8 +18,7 @@ pub fn run(
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
 
     if let Some(b) = branch {
-        let saves =
-            queries::list_saves(&conn, &project_path, Some(b), None, 10000, None)?;
+        let saves = queries::list_saves(&conn, &project_path, Some(b), None, 10000, None)?;
         let count = saves.len();
 
         if count == 0 {
@@ -27,11 +26,7 @@ pub fn run(
             return Ok(());
         }
 
-        if !force
-            && !cli::confirm(&format!(
-                "Delete {count} saved versions for branch '{b}'?"
-            ))
-        {
+        if !force && !cli::confirm(&format!("Delete {count} saved versions for branch '{b}'?")) {
             println!("{}", "Aborted.".yellow());
             return Ok(());
         }
@@ -42,8 +37,7 @@ pub fn run(
     }
 
     if all {
-        let saves =
-            queries::list_saves(&conn, &project_path, None, None, 10000, None)?;
+        let saves = queries::list_saves(&conn, &project_path, None, None, 10000, None)?;
         let count = saves.len();
 
         if count == 0 {
@@ -94,7 +88,9 @@ pub fn run(
         println!(
             "{} {} ({}{})",
             "Deleted:".green().bold(),
-            save.file_path, save.timestamp, branch_info
+            save.file_path,
+            save.timestamp,
+            branch_info
         );
         return Ok(());
     }

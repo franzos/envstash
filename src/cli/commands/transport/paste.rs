@@ -7,8 +7,7 @@ use crate::error::{Error, Result};
 /// Upload bytes to a paste service via multipart form upload.
 /// Returns the URL of the uploaded paste.
 pub fn send(data: &[u8], url: &str, headers: &HashMap<String, String>) -> Result<String> {
-    let form = Form::new()
-        .part("file", Part::bytes(data).file_name("envstash-send.env"));
+    let form = Form::new().part("file", Part::bytes(data).file_name("envstash-send.env"));
 
     let mut req = ureq::post(url);
     for (key, value) in headers {

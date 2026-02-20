@@ -5,17 +5,13 @@ use crate::export::transport;
 use crate::store::queries;
 
 /// Run the `load` command: import a dump file into the store.
-pub fn run(
-    path: &str,
-    password: Option<&str>,
-    key_file: Option<&str>,
-) -> Result<()> {
+pub fn run(path: &str, password: Option<&str>, key_file: Option<&str>) -> Result<()> {
     let conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
 
     // Read the file.
-    let data = std::fs::read(path)
-        .map_err(|e| Error::Other(format!("failed to read {path}: {e}")))?;
+    let data =
+        std::fs::read(path).map_err(|e| Error::Other(format!("failed to read {path}: {e}")))?;
 
     if data.is_empty() {
         return Err(Error::Other("empty dump file".to_string()));
@@ -31,8 +27,7 @@ pub fn run(
     let dump = export::dump_from_json(&text)?;
 
     // Insert all saves, skipping duplicates.
-    let (inserted, skipped) =
-        queries::insert_all_saves(&conn, &dump.saves, aes_key.as_ref())?;
+    let (inserted, skipped) = queries::insert_all_saves(&conn, &dump.saves, aes_key.as_ref())?;
 
     println!("Loaded {inserted} saves ({skipped} skipped as duplicates)");
 
@@ -52,8 +47,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -83,8 +85,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -109,8 +118,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -142,8 +158,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -174,8 +197,15 @@ mod tests {
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, Some(&key),
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -218,18 +248,39 @@ mod tests {
         }];
 
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries1, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries1,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj1", ".env", "dev", "a2",
-            "2024-01-02T00:00:00Z", "h2", &entries2, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries2,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj2", "apps/.env", "main", "a3",
-            "2024-01-03T00:00:00Z", "h3", &entries3, None,
+            &conn,
+            "/proj2",
+            "apps/.env",
+            "main",
+            "a3",
+            "2024-01-03T00:00:00Z",
+            "h3",
+            &entries3,
+            None,
         )
         .unwrap();
 

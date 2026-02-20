@@ -38,8 +38,22 @@ pub fn run(
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
     let current_branch = git_ctx.as_ref().map(|c| c.branch.as_str());
 
-    let entries_a = resolve_entries(a, cwd, &conn, &project_path, current_branch, aes_key.as_ref())?;
-    let entries_b = resolve_entries(b, cwd, &conn, &project_path, current_branch, aes_key.as_ref())?;
+    let entries_a = resolve_entries(
+        a,
+        cwd,
+        &conn,
+        &project_path,
+        current_branch,
+        aes_key.as_ref(),
+    )?;
+    let entries_b = resolve_entries(
+        b,
+        cwd,
+        &conn,
+        &project_path,
+        current_branch,
+        aes_key.as_ref(),
+    )?;
 
     let result = crate::diff::diff(&entries_a, &entries_b);
 

@@ -43,11 +43,7 @@ pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Resu
             store::init(&conn, "password")?;
 
             if key_file.is_some() {
-                queries::set_config(
-                    &conn,
-                    "key_file",
-                    key_path.to_str().unwrap_or(""),
-                )?;
+                queries::set_config(&conn, "key_file", key_path.to_str().unwrap_or(""))?;
             }
         }
         "gpg" => {
@@ -84,11 +80,7 @@ pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Resu
             store::init(&conn, "gpg")?;
 
             if key_file.is_some() {
-                queries::set_config(
-                    &conn,
-                    "key_file",
-                    key_path.to_str().unwrap_or(""),
-                )?;
+                queries::set_config(&conn, "key_file", key_path.to_str().unwrap_or(""))?;
             }
 
             set_file_permissions(&path)?;

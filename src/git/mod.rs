@@ -22,15 +22,9 @@ pub fn detect(dir: &Path) -> Result<Option<GitContext>> {
 
     let head = repo.head()?;
 
-    let branch = head
-        .shorthand()
-        .unwrap_or("HEAD")
-        .to_string();
+    let branch = head.shorthand().unwrap_or("HEAD").to_string();
 
-    let commit = head
-        .peel_to_commit()?
-        .id()
-        .to_string();
+    let commit = head.peel_to_commit()?.id().to_string();
 
     Ok(Some(GitContext {
         repo_root,
@@ -110,7 +104,9 @@ mod tests {
         let repo = make_temp_repo();
         let sub = repo.path().join("sub");
         fs::create_dir(&sub).unwrap();
-        let ctx = detect(&sub).unwrap().expect("should detect repo from subdir");
+        let ctx = detect(&sub)
+            .unwrap()
+            .expect("should detect repo from subdir");
         assert_eq!(ctx.repo_root, repo.path().canonicalize().unwrap());
     }
 

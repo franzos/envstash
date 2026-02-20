@@ -10,12 +10,19 @@ use crate::error::{Error, Result};
 ///
 /// Returns `Ok(Some(url))` for backends that produce a URL (paste, gist),
 /// `Ok(None)` for backends that don't (email, ssh).
-pub fn send(target: &str, data: &[u8], public: bool, filename: Option<&str>) -> Result<Option<String>> {
+pub fn send(
+    target: &str,
+    data: &[u8],
+    public: bool,
+    filename: Option<&str>,
+) -> Result<Option<String>> {
     if target == "gist" {
         // For gist: base64-encode binary data (encrypted output).
         let payload = if is_binary(data) {
             use base64::Engine;
-            base64::engine::general_purpose::STANDARD.encode(data).into_bytes()
+            base64::engine::general_purpose::STANDARD
+                .encode(data)
+                .into_bytes()
         } else {
             data.to_vec()
         };

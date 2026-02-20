@@ -10,7 +10,12 @@ use crate::parser;
 use crate::store::queries;
 
 /// Run the `save` command: read .env from disk, parse, and store.
-pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>, message: Option<&str>) -> Result<()> {
+pub fn run(
+    cwd: &Path,
+    file: Option<&str>,
+    key_file: Option<&str>,
+    message: Option<&str>,
+) -> Result<()> {
     let conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
@@ -52,6 +57,12 @@ pub fn run(cwd: &Path, file: Option<&str>, key_file: Option<&str>, message: Opti
         None => String::new(),
     };
 
-    println!("{} {} ({} variables){}", "Saved".green().bold(), file_path, entries.len(), msg_suffix);
+    println!(
+        "{} {} ({} variables){}",
+        "Saved".green().bold(),
+        file_path,
+        entries.len(),
+        msg_suffix
+    );
     Ok(())
 }

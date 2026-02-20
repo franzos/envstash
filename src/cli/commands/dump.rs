@@ -41,8 +41,8 @@ pub fn run(
                 let recips = if !recipients.is_empty() {
                     recipients.to_vec()
                 } else {
-                    let mode_str = queries::get_config(&conn, "encryption_mode")?
-                        .unwrap_or_default();
+                    let mode_str =
+                        queries::get_config(&conn, "encryption_mode")?.unwrap_or_default();
                     if mode_str == "gpg" {
                         let db_key_path = queries::get_config(&conn, "key_file")?;
                         let env_key_path = std::env::var("ENVSTASH_KEY_FILE").ok();
@@ -106,13 +106,27 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj1", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj1",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
         queries::insert_save(
-            &conn, "/proj2", "apps/.env", "dev", "a2",
-            "2024-01-02T00:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj2",
+            "apps/.env",
+            "dev",
+            "a2",
+            "2024-01-02T00:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -163,8 +177,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -195,8 +216,15 @@ mod tests {
         let conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "a1",
-            "2024-01-01T00:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "a1",
+            "2024-01-01T00:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 

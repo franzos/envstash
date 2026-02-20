@@ -44,7 +44,10 @@ pub fn run(
             return Ok(());
         }
 
-        println!("{}", format!("Changes to {}:", target_path.display()).bold());
+        println!(
+            "{}",
+            format!("Changes to {}:", target_path.display()).bold()
+        );
         print!("{}", output::format_diff_text(&diff_result, false));
 
         if !cli::confirm("Apply changes?") {
@@ -58,7 +61,11 @@ pub fn run(
     }
 
     std::fs::write(&target_path, &content)?;
-    println!("{} {}", "Applied version to".green().bold(), target_path.display());
+    println!(
+        "{} {}",
+        "Applied version to".green().bold(),
+        target_path.display()
+    );
     Ok(())
 }
 

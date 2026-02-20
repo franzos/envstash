@@ -17,7 +17,8 @@ fn detect_mailer() -> Result<&'static str> {
         }
     }
     Err(Error::Other(
-        "neither msmtp nor sendmail is installed. Install msmtp or a sendmail-compatible MTA.".to_string(),
+        "neither msmtp nor sendmail is installed. Install msmtp or a sendmail-compatible MTA."
+            .to_string(),
     ))
 }
 
@@ -27,7 +28,9 @@ pub fn send(data: &[u8], recipient: &str, subject: &str) -> Result<()> {
     let mailer = detect_mailer()?;
 
     // Build the email with headers.
-    let is_binary = data.iter().any(|&b| b > 127 || (b < 32 && b != b'\n' && b != b'\r' && b != b'\t'));
+    let is_binary = data
+        .iter()
+        .any(|&b| b > 127 || (b < 32 && b != b'\n' && b != b'\r' && b != b'\t'));
 
     let mut message = Vec::new();
     message.extend_from_slice(format!("To: {recipient}\r\n").as_bytes());

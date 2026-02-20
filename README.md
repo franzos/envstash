@@ -101,6 +101,7 @@ Versions can be referenced by **hash prefix** (stable, tab-completable) or by **
 | `envstash receive [--from <source>]` | Receive a shared version |
 | `envstash dump <path>` | Export the entire store |
 | `envstash load <path>` | Import a full dump |
+| `envstash man` | Show usage examples and detailed guide |
 
 ## Encryption
 

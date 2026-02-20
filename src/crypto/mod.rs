@@ -112,7 +112,11 @@ mod tests {
 
     #[test]
     fn encryption_mode_round_trip() {
-        for mode in [EncryptionMode::None, EncryptionMode::Gpg, EncryptionMode::Password] {
+        for mode in [
+            EncryptionMode::None,
+            EncryptionMode::Gpg,
+            EncryptionMode::Password,
+        ] {
             let s = mode.as_str();
             let parsed: EncryptionMode = s.parse().unwrap();
             assert_eq!(parsed, mode);

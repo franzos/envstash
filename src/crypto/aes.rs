@@ -1,5 +1,5 @@
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
-use aes_gcm::{Aes256Gcm, AeadCore, Nonce};
+use aes_gcm::{AeadCore, Aes256Gcm, Nonce};
 
 use crate::error::{Error, Result};
 
@@ -22,8 +22,7 @@ pub fn generate_key() -> [u8; KEY_LEN] {
 /// Returns `nonce (12 bytes) || ciphertext || tag (16 bytes)`.
 /// The `aes-gcm` crate appends the tag to the ciphertext automatically.
 pub fn encrypt(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>> {
-    let cipher =
-        Aes256Gcm::new_from_slice(key).map_err(|e| Error::Encryption(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Encryption(e.to_string()))?;
 
     let nonce = Aes256Gcm::generate_nonce(OsRng);
     let ciphertext = cipher
@@ -46,8 +45,7 @@ pub fn decrypt(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>> {
         ));
     }
 
-    let cipher =
-        Aes256Gcm::new_from_slice(key).map_err(|e| Error::Decryption(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Decryption(e.to_string()))?;
 
     let nonce = Nonce::from_slice(&blob[..NONCE_LEN]);
     let ciphertext = &blob[NONCE_LEN..];

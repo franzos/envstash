@@ -72,7 +72,8 @@ pub fn run(
         eprintln!(
             "{} content hash mismatch (expected {}, computed {})",
             "warning:".yellow(),
-            envelope.content_hash, computed_hash
+            envelope.content_hash,
+            computed_hash
         );
     }
 
@@ -108,8 +109,8 @@ pub fn run(
 
 #[cfg(test)]
 mod tests {
-    use crate::export::{self, ExportEntry, ExportEnvelope};
     use crate::export::transport;
+    use crate::export::{self, ExportEntry, ExportEnvelope};
     use crate::store::queries;
     use crate::test_helpers::{sample_entries, test_conn};
 
@@ -148,8 +149,15 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &entries, None,
+            &conn,
+            "/proj",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -174,8 +182,15 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &entries, None,
+            &conn,
+            "/proj",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -196,8 +211,15 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &entries, Some(&key),
+            &conn,
+            "/proj",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &entries,
+            Some(&key),
         )
         .unwrap();
 
@@ -216,8 +238,15 @@ mod tests {
 
         // Save.
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-06-17T12:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-06-17T12:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -233,8 +262,15 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn, "/proj2", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &imported_entries, None,
+            &conn,
+            "/proj2",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &imported_entries,
+            None,
         )
         .unwrap();
 
@@ -251,8 +287,15 @@ mod tests {
         let entries = sample_entries();
 
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "def",
-            "2024-06-17T12:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "def",
+            "2024-06-17T12:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -266,8 +309,15 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn, "/proj2", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &imported_entries, None,
+            &conn,
+            "/proj2",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &imported_entries,
+            None,
         )
         .unwrap();
 
@@ -348,8 +398,15 @@ mod tests {
 
         // Save to store.
         queries::insert_save(
-            &conn, "/proj", ".env", "main", "abc",
-            "2024-06-17T12:00:00Z", "h1", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "main",
+            "abc",
+            "2024-06-17T12:00:00Z",
+            "h1",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -368,8 +425,15 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn, "/proj2", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &imported_entries, None,
+            &conn,
+            "/proj2",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &imported_entries,
+            None,
         )
         .unwrap();
 
@@ -386,8 +450,15 @@ mod tests {
         let entries = sample_entries();
 
         queries::insert_save(
-            &conn, "/proj", ".env", "dev", "def",
-            "2024-06-17T12:00:00Z", "h2", &entries, None,
+            &conn,
+            "/proj",
+            ".env",
+            "dev",
+            "def",
+            "2024-06-17T12:00:00Z",
+            "h2",
+            &entries,
+            None,
         )
         .unwrap();
 
@@ -406,8 +477,15 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn, "/proj2", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &imported_entries, None,
+            &conn,
+            "/proj2",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &imported_entries,
+            None,
         )
         .unwrap();
 
@@ -445,8 +523,15 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save_with_message(
-            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &entries, None,
+            &conn,
+            "/proj",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &entries,
+            None,
             parsed.message.as_deref(),
         )
         .unwrap();
@@ -469,8 +554,15 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save_with_message(
-            &conn, "/proj", &parsed.file, &parsed.branch, &parsed.commit,
-            &parsed.timestamp, &hash, &entries, None,
+            &conn,
+            "/proj",
+            &parsed.file,
+            &parsed.branch,
+            &parsed.commit,
+            &parsed.timestamp,
+            &hash,
+            &entries,
+            None,
             parsed.message.as_deref(),
         )
         .unwrap();

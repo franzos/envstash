@@ -22,9 +22,8 @@ pub fn verify_hmac(key: &[u8], data: &[u8], expected_hex: &str) -> Result<bool> 
         .map_err(|e| Error::Encryption(format!("HMAC init failed: {e}")))?;
     mac.update(data);
 
-    let expected = hex::decode(expected_hex).map_err(|e| {
-        Error::Decryption(format!("invalid HMAC hex: {e}"))
-    })?;
+    let expected = hex::decode(expected_hex)
+        .map_err(|e| Error::Decryption(format!("invalid HMAC hex: {e}")))?;
 
     Ok(mac.verify_slice(&expected).is_ok())
 }
@@ -34,13 +33,13 @@ mod hex {
     use std::fmt::Write;
 
     pub fn encode(bytes: impl AsRef<[u8]>) -> String {
-        bytes
-            .as_ref()
-            .iter()
-            .fold(String::with_capacity(bytes.as_ref().len() * 2), |mut s, b| {
+        bytes.as_ref().iter().fold(
+            String::with_capacity(bytes.as_ref().len() * 2),
+            |mut s, b| {
                 let _ = write!(s, "{b:02x}");
                 s
-            })
+            },
+        )
     }
 
     pub fn decode(s: &str) -> Result<Vec<u8>, String> {

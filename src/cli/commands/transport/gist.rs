@@ -17,7 +17,9 @@ pub fn is_available() -> bool {
 /// If `filename` is provided, the temp file (and thus the gist file) is named `<filename>.env`.
 pub fn send(data: &[u8], public: bool, filename: Option<&str>) -> Result<String> {
     if !is_available() {
-        return Err(Error::Other("gh CLI is not installed. See https://cli.github.com".to_string()));
+        return Err(Error::Other(
+            "gh CLI is not installed. See https://cli.github.com".to_string(),
+        ));
     }
 
     // gh gist create requires a file, so write to a temp file.
@@ -56,7 +58,9 @@ pub fn send(data: &[u8], public: bool, filename: Option<&str>) -> Result<String>
 
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if url.is_empty() {
-        return Err(Error::Other("gh gist create returned empty response".to_string()));
+        return Err(Error::Other(
+            "gh gist create returned empty response".to_string(),
+        ));
     }
 
     Ok(url)
@@ -65,7 +69,9 @@ pub fn send(data: &[u8], public: bool, filename: Option<&str>) -> Result<String>
 /// Fetch a gist by ID via `gh gist view <id> --raw`.
 pub fn fetch(gist_id: &str) -> Result<Vec<u8>> {
     if !is_available() {
-        return Err(Error::Other("gh CLI is not installed. See https://cli.github.com".to_string()));
+        return Err(Error::Other(
+            "gh CLI is not installed. See https://cli.github.com".to_string(),
+        ));
     }
 
     let output = Command::new("gh")
@@ -86,8 +92,5 @@ pub fn fetch(gist_id: &str) -> Result<Vec<u8>> {
 /// Extract a gist ID from a GitHub gist URL.
 /// Supports: https://gist.github.com/<user>/<id> and bare IDs.
 pub fn extract_gist_id(url: &str) -> &str {
-    url.trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or(url)
+    url.trim_end_matches('/').rsplit('/').next().unwrap_or(url)
 }

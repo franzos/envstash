@@ -1,3 +1,12 @@
+## [0.1.8] - 2026-02-20
+
+### Added
+- `man` command with usage examples and detailed guide
+- Context-aware help: bare `envstash` hides Setup when store is initialized, hides completion tip when already configured
+
+### Changed
+- Bare `envstash` now shows dynamic help instead of clap's static help
+
 ## [0.1.7] - 2026-02-11
 
 ### Fixed
