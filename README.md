@@ -33,6 +33,13 @@ curl -sL https://github.com/franzos/envstash/releases/latest/download/envstash-x
 sudo mv envstash /usr/local/bin/
 ```
 
+**Homebrew:**
+
+```bash
+brew tap franzos/tap
+brew install envstash
+```
+
 **Debian/Ubuntu:**
 
 Download the `.deb` from [GitHub Releases](https://github.com/franzos/envstash/releases) and install:
