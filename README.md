@@ -9,52 +9,15 @@
 
 ## Install
 
-**From crates.io:**
+| Method | Command |
+|--------|---------|
+| Cargo | `cargo install envstash` |
+| Homebrew | `brew tap franzos/tap && brew install envstash` |
+| Debian/Ubuntu | Download [`.deb`](https://github.com/franzos/envstash/releases) — `sudo dpkg -i envstash_*_amd64.deb` |
+| Fedora/RHEL | Download [`.rpm`](https://github.com/franzos/envstash/releases) — `sudo rpm -i envstash-*.x86_64.rpm` |
+| Guix | `guix install -L <panther> envstash` ([Panther channel](https://github.com/franzos/panther)) |
 
-```bash
-cargo install envstash
-```
-
-**Pre-built binaries:**
-
-Download the latest release from [GitHub Releases](https://github.com/franzos/envstash/releases) and extract the binary to a directory in your `PATH`:
-
-```bash
-# macOS (Apple Silicon)
-curl -sL https://github.com/franzos/envstash/releases/latest/download/envstash-aarch64-apple-darwin.tar.gz | tar xz
-sudo mv envstash /usr/local/bin/
-
-# macOS (Intel)
-curl -sL https://github.com/franzos/envstash/releases/latest/download/envstash-x86_64-apple-darwin.tar.gz | tar xz
-sudo mv envstash /usr/local/bin/
-
-# Linux (x86_64)
-curl -sL https://github.com/franzos/envstash/releases/latest/download/envstash-x86_64-unknown-linux-gnu.tar.gz | tar xz
-sudo mv envstash /usr/local/bin/
-```
-
-**Homebrew:**
-
-```bash
-brew tap franzos/tap
-brew install envstash
-```
-
-**Debian/Ubuntu:**
-
-Download the `.deb` from [GitHub Releases](https://github.com/franzos/envstash/releases) and install:
-
-```bash
-sudo dpkg -i envstash_*_amd64.deb
-```
-
-**Fedora/RHEL:**
-
-Download the `.rpm` from [GitHub Releases](https://github.com/franzos/envstash/releases) and install:
-
-```bash
-sudo rpm -i envstash-*.x86_64.rpm
-```
+Pre-built binaries for Linux (x86_64), macOS (Apple Silicon, Intel) on [GitHub Releases](https://github.com/franzos/envstash/releases).
 
 ## Quick start
 
