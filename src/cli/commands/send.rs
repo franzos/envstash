@@ -52,7 +52,7 @@ pub fn run(
     }
 
     // Load entries (decrypting if needed).
-    let entries = cli::load_entries(&conn, &save, aes_key.as_ref())?;
+    let entries = cli::load_entries(&conn, &save, aes_key.as_deref())?;
 
     // Build export envelope and serialize.
     let envelope = export::build_envelope(&save, &entries);

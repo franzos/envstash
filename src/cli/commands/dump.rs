@@ -19,14 +19,13 @@ pub fn run(
     let conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
 
-    // Load all saves (decrypting if the store is encrypted).
-    let all_saves = queries::get_all_saves(&conn, aes_key.as_ref())?;
-
-    // Build the dump envelope.
-    let dump_saves: Vec<export::DumpSave> = all_saves
-        .iter()
-        .map(|(save, entries)| export::build_dump_save(save, entries))
-        .collect();
+    // Load all saves (decrypting if the store is encrypted), building
+    // DumpSave objects incrementally to avoid holding raw entries in memory.
+    let mut dump_saves = Vec::new();
+    queries::for_each_save(&conn, aes_key.as_deref(), |save, entries| {
+        dump_saves.push(export::build_dump_save(&save, &entries));
+        Ok(())
+    })?;
     let dump = export::build_dump(dump_saves);
     let json = export::dump_to_json(&dump)?;
 
@@ -51,7 +50,7 @@ pub fn run(
                             env_key_path.as_deref(),
                             db_key_path.as_deref(),
                         )
-                        .unwrap_or_else(|| cli::store_dir().join("key.gpg"));
+                        .unwrap_or_else(|| cli::store_dir().unwrap_or_default().join("key.gpg"));
                         crypto::gpg::key_recipients(&key_path)?
                     } else {
                         return Err(Error::NoGpgRecipient);

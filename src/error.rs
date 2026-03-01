@@ -66,6 +66,9 @@ pub enum Error {
     #[error("Encryption key required. Provide via --key-file or ENVSTASH_KEY_FILE.")]
     EncryptionKeyRequired,
 
+    #[error("process exited with code {0}")]
+    ExitCode(i32),
+
     #[error("{0}")]
     Other(String),
 }

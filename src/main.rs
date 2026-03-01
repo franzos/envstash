@@ -18,6 +18,9 @@ fn main() {
     clap_complete::CompleteEnv::with_factory(cli::Cli::command).complete();
 
     if let Err(e) = cli::run() {
+        if let error::Error::ExitCode(code) = e {
+            std::process::exit(code);
+        }
         eprintln!("error: {e}");
         std::process::exit(1);
     }

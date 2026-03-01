@@ -158,7 +158,7 @@ pub fn insert_save_with_message(
 }
 
 /// Insert a save using a `SaveInput` struct.
-fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
+pub fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
     let hmac_value = if let Some(key) = input.aes_key {
         let data = format_hmac_data(
             input.project_path,
@@ -481,17 +481,17 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectSummary>> {
     Ok(results)
 }
 
-/// Get all saves (for dump).
-pub fn get_all_saves(
+/// Process each save one at a time via a callback, avoiding loading the entire
+/// store into memory at once.
+pub fn for_each_save(
     conn: &Connection,
     aes_key: Option<&[u8; 32]>,
-) -> Result<Vec<(SaveMetadata, Vec<EnvEntry>)>> {
+    mut f: impl FnMut(SaveMetadata, Vec<EnvEntry>) -> Result<()>,
+) -> Result<()> {
     let saves = {
-        let sql = format!("SELECT {SAVE_COLUMNS} FROM saves ORDER BY timestamp",);
+        let sql = format!("SELECT {SAVE_COLUMNS} FROM saves ORDER BY timestamp");
         let mut stmt = conn.prepare(&sql)?;
-
         let rows = stmt.query_map([], row_to_save_metadata)?;
-
         let mut results = Vec::new();
         for row in rows {
             results.push(row?);
@@ -499,11 +499,23 @@ pub fn get_all_saves(
         results
     };
 
-    let mut out = Vec::new();
     for save in saves {
         let entries = get_save_entries(conn, save.id, aes_key)?;
-        out.push((save, entries));
+        f(save, entries)?;
     }
+    Ok(())
+}
+
+/// Get all saves (for dump). Prefer `for_each_save` for large stores.
+pub fn get_all_saves(
+    conn: &Connection,
+    aes_key: Option<&[u8; 32]>,
+) -> Result<Vec<(SaveMetadata, Vec<EnvEntry>)>> {
+    let mut out = Vec::new();
+    for_each_save(conn, aes_key, |save, entries| {
+        out.push((save, entries));
+        Ok(())
+    })?;
     Ok(out)
 }
 
@@ -538,17 +550,19 @@ pub fn insert_all_saves(
         }
 
         let entries: Vec<EnvEntry> = save.entries.iter().map(EnvEntry::from).collect();
-        insert_save_with_message(
+        insert_save_input(
             conn,
-            &save.project_path,
-            &save.file,
-            &save.branch,
-            &save.commit,
-            &save.timestamp,
-            &save.content_hash,
-            &entries,
-            aes_key,
-            save.message.as_deref(),
+            &SaveInput {
+                project_path: &save.project_path,
+                file_path: &save.file,
+                branch: &save.branch,
+                commit_hash: &save.commit,
+                timestamp: &save.timestamp,
+                content_hash: &save.content_hash,
+                entries: &entries,
+                aes_key,
+                message: save.message.as_deref(),
+            },
         )?;
         inserted += 1;
     }

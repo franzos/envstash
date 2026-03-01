@@ -10,8 +10,8 @@ use crate::store::queries;
 
 /// Run the `init` command: create store directory and database.
 pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Result<()> {
-    let dir = cli::store_dir();
-    let path = cli::store_path();
+    let dir = cli::store_dir()?;
+    let path = cli::store_path()?;
 
     if path.exists() {
         let conn = store::open(&path)?;

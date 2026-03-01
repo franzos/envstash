@@ -44,7 +44,7 @@ pub fn run(
         &conn,
         &project_path,
         current_branch,
-        aes_key.as_ref(),
+        aes_key.as_deref(),
     )?;
     let entries_b = resolve_entries(
         b,
@@ -52,7 +52,7 @@ pub fn run(
         &conn,
         &project_path,
         current_branch,
-        aes_key.as_ref(),
+        aes_key.as_deref(),
     )?;
 
     let result = crate::diff::diff(&entries_a, &entries_b);

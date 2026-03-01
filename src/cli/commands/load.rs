@@ -27,7 +27,7 @@ pub fn run(path: &str, password: Option<&str>, key_file: Option<&str>) -> Result
     let dump = export::dump_from_json(&text)?;
 
     // Insert all saves, skipping duplicates.
-    let (inserted, skipped) = queries::insert_all_saves(&conn, &dump.saves, aes_key.as_ref())?;
+    let (inserted, skipped) = queries::insert_all_saves(&conn, &dump.saves, aes_key.as_deref())?;
 
     println!("Loaded {inserted} saves ({skipped} skipped as duplicates)");
 

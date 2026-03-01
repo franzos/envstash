@@ -20,7 +20,7 @@ pub fn run(
     let current_branch = git_ctx.as_ref().map(|c| c.branch.as_str());
 
     let save = cli::resolve_version(&conn, &project_path, current_branch, version)?;
-    let entries = cli::load_entries(&conn, &save, aes_key.as_ref())?;
+    let entries = cli::load_entries(&conn, &save, aes_key.as_deref())?;
     let content = parser::serialize(&entries);
 
     let target_path = match dest {

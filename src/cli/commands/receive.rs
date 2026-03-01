@@ -8,7 +8,7 @@ use crate::error::Result;
 use crate::export;
 use crate::export::transport;
 use crate::parser;
-use crate::store::queries;
+use crate::store::queries::{self, SaveInput};
 
 use super::transport as remote;
 
@@ -78,17 +78,19 @@ pub fn run(
     }
 
     // Insert into the store, preserving message.
-    queries::insert_save_with_message(
+    queries::insert_save_input(
         &conn,
-        &project_path,
-        &envelope.file,
-        &envelope.branch,
-        &envelope.commit,
-        &envelope.timestamp,
-        &computed_hash,
-        &entries,
-        aes_key.as_ref(),
-        envelope.message.as_deref(),
+        &SaveInput {
+            project_path: &project_path,
+            file_path: &envelope.file,
+            branch: &envelope.branch,
+            commit_hash: &envelope.commit,
+            timestamp: &envelope.timestamp,
+            content_hash: &computed_hash,
+            entries: &entries,
+            aes_key: aes_key.as_deref(),
+            message: envelope.message.as_deref(),
+        },
     )?;
 
     println!(

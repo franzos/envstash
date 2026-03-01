@@ -6,6 +6,8 @@ pub mod password;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use zeroize::Zeroizing;
+
 use crate::error::{Error, Result};
 
 /// Encryption mode for the store.
@@ -73,7 +75,9 @@ pub fn resolve_key_file(
 /// - `Gpg`: reads the key file and decrypts it with GPG.
 /// - `Password`: reads the key file and decrypts it with a password.
 /// - `None`: no key needed, returns an error (caller should not call this).
-pub fn load_key(mode: EncryptionMode, key_file: &Path) -> Result<[u8; aes::KEY_LEN]> {
+///
+/// The returned key is wrapped in `Zeroizing` to ensure it is zeroed on drop.
+pub fn load_key(mode: EncryptionMode, key_file: &Path) -> Result<Zeroizing<[u8; aes::KEY_LEN]>> {
     match mode {
         EncryptionMode::None => Err(Error::Other(
             "no encryption configured, key not needed".to_string(),
@@ -88,7 +92,7 @@ pub fn load_key(mode: EncryptionMode, key_file: &Path) -> Result<[u8; aes::KEY_L
                     got: raw.len(),
                 });
             }
-            let mut key = [0u8; aes::KEY_LEN];
+            let mut key = Zeroizing::new([0u8; aes::KEY_LEN]);
             key.copy_from_slice(&raw);
             Ok(key)
         }
@@ -96,7 +100,8 @@ pub fn load_key(mode: EncryptionMode, key_file: &Path) -> Result<[u8; aes::KEY_L
             let blob = std::fs::read(key_file)
                 .map_err(|_| Error::KeyFileNotFound(key_file.to_path_buf()))?;
             let pw = password::get_password()?;
-            password::unwrap_key_password(&blob, &pw)
+            let key = password::unwrap_key_password(&blob, &pw)?;
+            Ok(Zeroizing::new(key))
         }
     }
 }
@@ -211,6 +216,6 @@ mod tests {
             std::env::remove_var("ENVSTASH_PASSWORD");
         }
 
-        assert_eq!(loaded, key);
+        assert_eq!(*loaded, key);
     }
 }

@@ -25,14 +25,14 @@ pub fn run(
 
     let entries = if let Some(v) = version {
         let save = cli::resolve_version(&conn, &project_path, current_branch, v)?;
-        cli::load_entries(&conn, &save, aes_key.as_ref())?
+        cli::load_entries(&conn, &save, aes_key.as_deref())?
     } else {
         let branch = current_branch.unwrap_or("");
         let saves = queries::list_saves(&conn, &project_path, Some(branch), None, 1, None)?;
         let save = saves
             .first()
             .ok_or_else(|| Error::SaveNotFound("no saves on current branch".to_string()))?;
-        cli::load_entries(&conn, save, aes_key.as_ref())?
+        cli::load_entries(&conn, save, aes_key.as_deref())?
     };
 
     let mut cmd = Command::new(&command[0]);
@@ -56,5 +56,10 @@ pub fn run(
         .status()
         .map_err(|e| Error::Other(format!("Failed to execute '{}': {e}", command[0])))?;
 
-    std::process::exit(status.code().unwrap_or(1));
+    let code = status.code().unwrap_or(1);
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(Error::ExitCode(code))
+    }
 }

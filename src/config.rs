@@ -3,15 +3,19 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::{Error, Result};
+
 /// Config file path (~/.config/envstash/config.toml).
-pub fn config_path() -> PathBuf {
-    let config_dir = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            let home = std::env::var("HOME").expect("HOME not set");
+pub fn config_path() -> Result<PathBuf> {
+    let config_dir = match std::env::var("XDG_CONFIG_HOME") {
+        Ok(dir) => PathBuf::from(dir),
+        Err(_) => {
+            let home = std::env::var("HOME")
+                .map_err(|_| Error::Other("HOME environment variable not set".to_string()))?;
             PathBuf::from(home).join(".config")
-        });
-    config_dir.join("envstash").join("config.toml")
+        }
+    };
+    Ok(config_dir.join("envstash").join("config.toml"))
 }
 
 /// Top-level config structure.
@@ -33,7 +37,10 @@ pub struct SendConfig {
 
 /// Load the config file, returning defaults if it doesn't exist.
 pub fn load() -> Config {
-    let path = config_path();
+    let path = match config_path() {
+        Ok(p) => p,
+        Err(_) => return Config::default(),
+    };
     load_from(&path)
 }
 
@@ -54,7 +61,7 @@ mod tests {
 
     #[test]
     fn config_path_uses_xdg() {
-        let path = config_path();
+        let path = config_path().unwrap();
         assert!(path.ends_with("envstash/config.toml"));
     }
 

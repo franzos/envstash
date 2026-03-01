@@ -7,6 +7,8 @@ use clap::{Parser, Subcommand};
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 use rusqlite::{Connection, OpenFlags};
 
+use zeroize::Zeroizing;
+
 use crate::crypto;
 use crate::error::{Error, Result};
 use crate::git;
@@ -534,7 +536,10 @@ fn is_store_initialized_at(path: &Path) -> bool {
 }
 
 fn is_store_initialized() -> bool {
-    is_store_initialized_at(&store_path())
+    match store_path() {
+        Ok(p) => is_store_initialized_at(&p),
+        Err(_) => false,
+    }
 }
 
 /// Check if any of the given RC files contain envstash completion config.
@@ -670,24 +675,26 @@ SEE ALSO
 // ---------------------------------------------------------------------------
 
 /// Store directory path (~/.local/share/envstash/).
-pub fn store_dir() -> PathBuf {
-    let data_dir = std::env::var("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            let home = std::env::var("HOME").expect("HOME not set");
+pub fn store_dir() -> Result<PathBuf> {
+    let data_dir = match std::env::var("XDG_DATA_HOME") {
+        Ok(dir) => PathBuf::from(dir),
+        Err(_) => {
+            let home = std::env::var("HOME")
+                .map_err(|_| Error::Other("HOME environment variable not set".to_string()))?;
             PathBuf::from(home).join(".local/share")
-        });
-    data_dir.join("envstash")
+        }
+    };
+    Ok(data_dir.join("envstash"))
 }
 
 /// Store database file path.
-pub fn store_path() -> PathBuf {
-    store_dir().join("store.db")
+pub fn store_path() -> Result<PathBuf> {
+    Ok(store_dir()?.join("store.db"))
 }
 
 /// Open the store, returning an error if not initialized.
 pub fn require_store() -> Result<Connection> {
-    let path = store_path();
+    let path = store_path()?;
     if !path.exists() {
         return Err(Error::StoreNotInitialized);
     }
@@ -706,7 +713,7 @@ pub fn require_store() -> Result<Connection> {
 pub fn load_encryption_key(
     conn: &Connection,
     key_file_flag: Option<&str>,
-) -> Result<Option<[u8; 32]>> {
+) -> Result<Option<Zeroizing<[u8; 32]>>> {
     let mode_str =
         queries::get_config(conn, "encryption_mode")?.unwrap_or_else(|| "none".to_string());
     let mode: crypto::EncryptionMode = mode_str.parse()?;
@@ -723,7 +730,7 @@ pub fn load_encryption_key(
         env_key_path.as_deref(),
         db_key_path.as_deref(),
     )
-    .unwrap_or_else(|| store_dir().join("key.gpg"));
+    .unwrap_or_else(|| store_dir().unwrap_or_default().join("key.gpg"));
 
     let key = crypto::load_key(mode, &key_path)?;
     Ok(Some(key))
@@ -886,7 +893,7 @@ mod tests {
 
     #[test]
     fn store_dir_uses_xdg() {
-        let dir = store_dir();
+        let dir = store_dir().unwrap();
         assert!(dir.ends_with("envstash"));
     }
 

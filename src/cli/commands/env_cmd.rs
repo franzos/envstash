@@ -19,7 +19,7 @@ pub fn run(
 
     let entries = if let Some(v) = version {
         let save = cli::resolve_version(&conn, &project_path, current_branch, v)?;
-        cli::load_entries(&conn, &save, aes_key.as_ref())?
+        cli::load_entries(&conn, &save, aes_key.as_deref())?
     } else {
         // Default: latest on current branch.
         let branch = current_branch.unwrap_or("");
@@ -27,7 +27,7 @@ pub fn run(
         let save = saves
             .first()
             .ok_or_else(|| Error::SaveNotFound("no saves on current branch".to_string()))?;
-        cli::load_entries(&conn, save, aes_key.as_ref())?
+        cli::load_entries(&conn, save, aes_key.as_deref())?
     };
 
     let filtered: Vec<_> = entries
@@ -38,11 +38,19 @@ pub fn run(
     match shell {
         "bash" => {
             for entry in &filtered {
+                if !is_valid_env_key(&entry.key) {
+                    eprintln!("warning: skipping invalid variable name: {}", entry.key);
+                    continue;
+                }
                 println!("export {}='{}'", entry.key, shell_escape_bash(&entry.value));
             }
         }
         "fish" => {
             for entry in &filtered {
+                if !is_valid_env_key(&entry.key) {
+                    eprintln!("warning: skipping invalid variable name: {}", entry.key);
+                    continue;
+                }
                 println!("set -x {} '{}'", entry.key, shell_escape_fish(&entry.value));
             }
         }
@@ -59,6 +67,16 @@ pub fn run(
     }
 
     Ok(())
+}
+
+/// Check if a string is a valid POSIX shell variable name: [a-zA-Z_][a-zA-Z0-9_]*
+fn is_valid_env_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// Escape a value for safe use inside bash single quotes.
@@ -81,6 +99,24 @@ fn shell_escape_fish(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn valid_env_key() {
+        assert!(is_valid_env_key("DB_HOST"));
+        assert!(is_valid_env_key("_PRIVATE"));
+        assert!(is_valid_env_key("A"));
+        assert!(is_valid_env_key("a1_B2"));
+    }
+
+    #[test]
+    fn invalid_env_key() {
+        assert!(!is_valid_env_key(""));
+        assert!(!is_valid_env_key("1STARTS_WITH_DIGIT"));
+        assert!(!is_valid_env_key("FOO;rm -rf /;X"));
+        assert!(!is_valid_env_key("KEY WITH SPACES"));
+        assert!(!is_valid_env_key("KEY=VAL"));
+        assert!(!is_valid_env_key("$(cmd)"));
+    }
 
     #[test]
     fn bash_escape_simple() {

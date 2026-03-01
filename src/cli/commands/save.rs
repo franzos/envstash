@@ -7,7 +7,7 @@ use colored::Colorize;
 use crate::cli;
 use crate::error::{Error, Result};
 use crate::parser;
-use crate::store::queries;
+use crate::store::queries::{self, SaveInput};
 
 /// Run the `save` command: read .env from disk, parse, and store.
 pub fn run(
@@ -39,17 +39,19 @@ pub fn run(
 
     let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
 
-    queries::insert_save_with_message(
+    queries::insert_save_input(
         &conn,
-        &project_path,
-        &file_path,
-        branch,
-        commit,
-        &timestamp,
-        &hash,
-        &entries,
-        aes_key.as_ref(),
-        message,
+        &SaveInput {
+            project_path: &project_path,
+            file_path: &file_path,
+            branch,
+            commit_hash: commit,
+            timestamp: &timestamp,
+            content_hash: &hash,
+            entries: &entries,
+            aes_key: aes_key.as_deref(),
+            message,
+        },
     )?;
 
     let msg_suffix = match message {
