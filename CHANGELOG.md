@@ -1,3 +1,10 @@
+## [0.1.9] - 2026-03-01
+
+### Changed
+- Encryption keys are zeroed from memory after use
+- Env output validates variable names to prevent shell injection
+- Graceful error handling when HOME is not set
+
 ## [0.1.8] - 2026-02-20
 
 ### Added
