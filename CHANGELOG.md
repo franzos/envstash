@@ -1,3 +1,12 @@
+## [0.1.11] - 2026-03-28
+
+### Added
+- Tab completion for file paths in `save`, `checkout --dest`, `receive`, `dump`, `load`
+- Tab completion for file paths and version hashes in `diff`
+
+### Changed
+- Clippy fixes across the codebase
+
 ## [0.1.10] - 2026-03-02
 
 ### Changed

@@ -4,7 +4,9 @@ pub mod output;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
-use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
+use clap_complete::engine::{
+    ArgValueCompleter, CompletionCandidate, PathCompleter, ValueCompleter,
+};
 use rusqlite::{Connection, OpenFlags};
 
 use zeroize::Zeroizing;
@@ -126,6 +128,7 @@ pub enum Commands {
     /// Save the current .env file
     Save {
         /// Path to the .env file (default: .env)
+        #[arg(add = ArgValueCompleter::new(PathCompleter::file()))]
         file: Option<String>,
 
         /// Optional message describing this save
@@ -159,10 +162,10 @@ pub enum Commands {
     /// Show diff between two versions or files
     Diff {
         /// First version (hash prefix or file path)
-        #[arg(add = ArgValueCompleter::new(complete_version))]
+        #[arg(add = ArgValueCompleter::new(complete_version_or_path))]
         a: String,
         /// Second version (hash prefix or file path)
-        #[arg(add = ArgValueCompleter::new(complete_version))]
+        #[arg(add = ArgValueCompleter::new(complete_version_or_path))]
         b: String,
         /// Show all variables including unchanged
         #[arg(long)]
@@ -182,7 +185,7 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
         /// Write to a different path
-        #[arg(long)]
+        #[arg(long, add = ArgValueCompleter::new(PathCompleter::file()))]
         dest: Option<String>,
     },
 
@@ -318,6 +321,7 @@ pub enum Commands {
     )]
     Receive {
         /// Path to file (reads from stdin if omitted)
+        #[arg(add = ArgValueCompleter::new(PathCompleter::file()))]
         file: Option<String>,
         /// Password for decrypting password-encrypted imports
         #[arg(long)]
@@ -330,6 +334,7 @@ pub enum Commands {
     /// Export entire store to a file
     Dump {
         /// Path to write the dump file
+        #[arg(add = ArgValueCompleter::new(PathCompleter::any()))]
         path: String,
         /// Enable transport encryption
         #[arg(long)]
@@ -348,6 +353,7 @@ pub enum Commands {
     /// Import a dump file into the store
     Load {
         /// Path to the dump file
+        #[arg(add = ArgValueCompleter::new(PathCompleter::file()))]
         path: String,
         /// Password for password-encrypted dumps
         #[arg(long)]
@@ -545,10 +551,11 @@ fn is_store_initialized() -> bool {
 /// Check if any of the given RC files contain envstash completion config.
 fn is_completion_configured_in(paths: &[PathBuf]) -> bool {
     for path in paths {
-        if let Ok(contents) = std::fs::read_to_string(path) {
-            if contents.contains("COMPLETE=") && contents.contains("envstash") {
-                return true;
-            }
+        if let Ok(contents) = std::fs::read_to_string(path)
+            && contents.contains("COMPLETE=")
+            && contents.contains("envstash")
+        {
+            return true;
         }
     }
     false
@@ -860,6 +867,13 @@ fn complete_version(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
             CompletionCandidate::new(hash).help(Some(help.into()))
         })
         .collect()
+}
+
+/// Shell completion: suggest both version hashes and file paths (for `diff`).
+fn complete_version_or_path(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    let mut candidates = complete_version(current);
+    candidates.extend(PathCompleter::file().complete(current));
+    candidates
 }
 
 #[cfg(test)]

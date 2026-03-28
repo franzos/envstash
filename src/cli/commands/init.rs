@@ -107,10 +107,10 @@ pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Resu
 /// Get password for init: check ENVSTASH_PASSWORD first, then prompt
 /// with confirmation.
 fn get_init_password() -> Result<String> {
-    if let Ok(pw) = std::env::var("ENVSTASH_PASSWORD") {
-        if !pw.is_empty() {
-            return Ok(pw);
-        }
+    if let Ok(pw) = std::env::var("ENVSTASH_PASSWORD")
+        && !pw.is_empty()
+    {
+        return Ok(pw);
     }
     let pw1 = crypto::password::prompt_password("Password: ")?;
     if pw1.is_empty() {

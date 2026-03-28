@@ -160,25 +160,26 @@ fn run_safety_checks(
     project_path: &str,
 ) -> Result<()> {
     // Check: saved version is from a different branch.
-    if let Some(branch) = current_branch {
-        if !save.branch.is_empty() && save.branch != branch {
-            return Err(Error::Other(format!(
-                "Saved version is from branch '{}', but current branch is '{}'. \
+    if let Some(branch) = current_branch
+        && !save.branch.is_empty()
+        && save.branch != branch
+    {
+        return Err(Error::Other(format!(
+            "Saved version is from branch '{}', but current branch is '{}'. \
                  Use --ignore to share anyway.",
-                save.branch, branch
-            )));
-        }
+            save.branch, branch
+        )));
     }
 
     // Check: current .env on disk differs from saved version.
-    if let Some(disk_hash) = cli::disk_content_hash(project_path, &save.file_path) {
-        if disk_hash != save.content_hash {
-            return Err(Error::Other(
-                "Current .env on disk differs from saved version. \
+    if let Some(disk_hash) = cli::disk_content_hash(project_path, &save.file_path)
+        && disk_hash != save.content_hash
+    {
+        return Err(Error::Other(
+            "Current .env on disk differs from saved version. \
                  Save first, or use --ignore to share anyway."
-                    .to_string(),
-            ));
-        }
+                .to_string(),
+        ));
     }
 
     Ok(())

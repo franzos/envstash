@@ -75,10 +75,10 @@ pub fn prompt_password(prompt: &str) -> Result<String> {
 /// Checks `ENVSTASH_PASSWORD` environment variable first, then falls back
 /// to an interactive terminal prompt.
 pub fn get_password() -> Result<String> {
-    if let Ok(pw) = std::env::var("ENVSTASH_PASSWORD") {
-        if !pw.is_empty() {
-            return Ok(pw);
-        }
+    if let Ok(pw) = std::env::var("ENVSTASH_PASSWORD")
+        && !pw.is_empty()
+    {
+        return Ok(pw);
     }
     prompt_password("Password: ")
 }

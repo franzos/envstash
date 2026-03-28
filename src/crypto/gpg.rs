@@ -53,10 +53,10 @@ pub fn list_secret_keys() -> Result<Vec<(String, String)>> {
         let fields: Vec<&str> = line.split(':').collect();
         if fields[0] == "sec" {
             current_key_id = fields.get(4).map(|s| s.to_string());
-        } else if fields[0] == "uid" {
-            if let (Some(key_id), Some(uid)) = (current_key_id.take(), fields.get(9)) {
-                keys.push((key_id, uid.to_string()));
-            }
+        } else if fields[0] == "uid"
+            && let (Some(key_id), Some(uid)) = (current_key_id.take(), fields.get(9))
+        {
+            keys.push((key_id, uid.to_string()));
         }
     }
 
@@ -82,10 +82,10 @@ pub fn key_recipients(path: &Path) -> Result<Vec<String>> {
     for line in combined.lines() {
         if let Some(pos) = line.find("keyid ") {
             let after = &line[pos + 6..];
-            if let Some(key_id) = after.split_whitespace().next() {
-                if !key_id.is_empty() {
-                    keys.push(key_id.to_string());
-                }
+            if let Some(key_id) = after.split_whitespace().next()
+                && !key_id.is_empty()
+            {
+                keys.push(key_id.to_string());
             }
         }
     }

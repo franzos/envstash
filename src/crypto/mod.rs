@@ -55,16 +55,16 @@ pub fn resolve_key_file(
         return Some(p.to_path_buf());
     }
 
-    if let Some(val) = env_var {
-        if !val.is_empty() {
-            return Some(PathBuf::from(val));
-        }
+    if let Some(val) = env_var
+        && !val.is_empty()
+    {
+        return Some(PathBuf::from(val));
     }
 
-    if let Some(val) = db_config {
-        if !val.is_empty() {
-            return Some(PathBuf::from(val));
-        }
+    if let Some(val) = db_config
+        && !val.is_empty()
+    {
+        return Some(PathBuf::from(val));
     }
 
     None
