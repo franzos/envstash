@@ -8,6 +8,7 @@ use crate::cli;
 use crate::error::{Error, Result};
 use crate::parser;
 use crate::store::queries::{self, SaveInput};
+use crate::util::fs as util_fs;
 
 /// Run the `save` command: read .env from disk, parse, and store.
 pub fn run(
@@ -16,7 +17,7 @@ pub fn run(
     key_file: Option<&str>,
     message: Option<&str>,
 ) -> Result<()> {
-    let conn = cli::require_store()?;
+    let mut conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
 
@@ -26,6 +27,10 @@ pub fn run(
     if !disk_path.exists() {
         return Err(Error::FileNotFound(disk_path));
     }
+
+    // Refuse to read through a symlink, which can bypass validate_target_path
+    // and exfiltrate arbitrary files.
+    util_fs::refuse_symlink(&disk_path, "save")?;
 
     let content = std::fs::read_to_string(&disk_path)?;
     let entries = parser::parse(&content)?;
@@ -40,7 +45,7 @@ pub fn run(
     let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
 
     queries::insert_save_input(
-        &conn,
+        &mut conn,
         &SaveInput {
             project_path: &project_path,
             file_path: &file_path,

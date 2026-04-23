@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::path::Path;
 
 use crate::cli;
 use crate::crypto;
@@ -6,6 +6,7 @@ use crate::error::{Error, Result};
 use crate::export;
 use crate::export::transport;
 use crate::store::queries;
+use crate::util::fs as util_fs;
 
 /// Run the `dump` command: export the entire store to a file.
 pub fn run(
@@ -13,7 +14,7 @@ pub fn run(
     encrypt: bool,
     encryption_method: &str,
     recipients: &[String],
-    password: Option<&str>,
+    password_file: Option<&Path>,
     key_file: Option<&str>,
 ) -> Result<()> {
     let conn = cli::require_store()?;
@@ -33,7 +34,7 @@ pub fn run(
     let data = if encrypt {
         match encryption_method {
             "password" => {
-                let pw = crypto::password::resolve_password(password)?;
+                let pw = crypto::password::resolve_password(password_file)?;
                 transport::encrypt_password(json.as_bytes(), &pw)?
             }
             _ => {
@@ -66,30 +67,14 @@ pub fn run(
         json.into_bytes()
     };
 
-    write_dump_file(path, &data)?;
+    let dump_path = Path::new(path);
+    // Refuse to overwrite a pre-planted symlink — an attacker could use one
+    // to redirect a plaintext dump (all project secrets) elsewhere.
+    util_fs::refuse_symlink(dump_path, "dump to")?;
+    util_fs::write_file_restricted(dump_path, &data)?;
 
     println!("Dumped {} saves to {path}", dump.saves.len());
 
-    Ok(())
-}
-
-/// Write dump data to a file with restrictive permissions (0600 on Unix).
-fn write_dump_file(path: &str, data: &[u8]) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(path)?;
-        file.write_all(data)?;
-    }
-    #[cfg(not(unix))]
-    {
-        std::fs::write(path, data)?;
-    }
     Ok(())
 }
 
@@ -102,10 +87,10 @@ mod tests {
 
     #[test]
     fn dump_and_load_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -117,7 +102,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             "apps/.env",
             "dev",
@@ -139,9 +124,10 @@ mod tests {
         let json = export::dump_to_json(&dump).unwrap();
 
         // Load into a new store.
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, skipped) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let (inserted, skipped) =
+            queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 2);
         assert_eq!(skipped, 0);
 
@@ -164,19 +150,20 @@ mod tests {
         );
         let json = export::dump_to_json(&dump).unwrap();
 
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, skipped) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let (inserted, skipped) =
+            queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 0);
         assert_eq!(skipped, 0);
     }
 
     #[test]
     fn dump_with_password_encryption_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -202,8 +189,8 @@ mod tests {
         let decrypted = transport::decrypt_auto(&encrypted, Some("test-pw")).unwrap();
         let text = String::from_utf8(decrypted).unwrap();
         let parsed = export::dump_from_json(&text).unwrap();
-        let conn2 = test_conn();
-        let (inserted, _) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let mut conn2 = test_conn();
+        let (inserted, _) = queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 1);
 
         let loaded = queries::get_all_saves(&conn2, None).unwrap();
@@ -212,10 +199,10 @@ mod tests {
 
     #[test]
     fn dump_load_idempotent() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -237,12 +224,12 @@ mod tests {
 
         // Load twice into the same store.
         let parsed = export::dump_from_json(&json).unwrap();
-        let (i1, s1) = queries::insert_all_saves(&conn, &parsed.saves, None).unwrap();
+        let (i1, s1) = queries::insert_all_saves(&mut conn, &parsed.saves, None).unwrap();
         assert_eq!(i1, 0);
         assert_eq!(s1, 1);
 
         let parsed2 = export::dump_from_json(&json).unwrap();
-        let (i2, s2) = queries::insert_all_saves(&conn, &parsed2.saves, None).unwrap();
+        let (i2, s2) = queries::insert_all_saves(&mut conn, &parsed2.saves, None).unwrap();
         assert_eq!(i2, 0);
         assert_eq!(s2, 1);
 
@@ -253,18 +240,34 @@ mod tests {
 
     #[test]
     fn dump_file_permissions() {
+        use crate::util::fs as util_fs;
+
         let dir = tempfile::tempdir().unwrap();
         let dump_path = dir.path().join("dump.json");
         let data = b"test dump data";
 
-        super::write_dump_file(dump_path.to_str().unwrap(), data).unwrap();
+        // Pre-create the destination as world-readable 0o644 to verify that
+        // the dump write both uses `write_file_restricted` and downgrades
+        // the mode on an existing file.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::write(&dump_path, b"stale").unwrap();
+            std::fs::set_permissions(&dump_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        util_fs::refuse_symlink(&dump_path, "dump to").unwrap();
+        util_fs::write_file_restricted(&dump_path, data).unwrap();
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let meta = std::fs::metadata(&dump_path).unwrap();
             let mode = meta.permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600, "Dump file should have mode 0600");
+            assert_eq!(
+                mode, 0o600,
+                "Dump file should be downgraded to 0600 even when it already existed"
+            );
         }
 
         let contents = std::fs::read(&dump_path).unwrap();

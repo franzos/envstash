@@ -1,15 +1,12 @@
-use std::process::{Command, Stdio};
+use std::io::Write;
+use std::process::Stdio;
 
 use crate::error::{Error, Result};
+use crate::util::subprocess::{is_available as util_is_available, spawn_clean};
 
 /// Check whether `gh` CLI is available.
 pub fn is_available() -> bool {
-    Command::new("gh")
-        .arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    util_is_available("gh")
 }
 
 /// Create a GitHub Gist via `gh gist create`.
@@ -22,23 +19,32 @@ pub fn send(data: &[u8], public: bool, filename: Option<&str>) -> Result<String>
         ));
     }
 
-    // gh gist create requires a file, so write to a temp file.
-    let name = match filename {
-        Some(n) => format!("{n}.env"),
-        None => "envstash-send.env".to_string(),
+    // gh gist create requires a file. Use a tempfile::NamedTempFile with a
+    // randomized name and mode 0600 (via tempfile's defaults), so the file
+    // is safe from predictable-path races and auto-deletes on Drop.
+    let suffix = match filename {
+        Some(n) => format!("-{n}.env"),
+        None => "-envstash-send.env".to_string(),
     };
-    let file_path = std::env::temp_dir().join(name);
-    std::fs::write(&file_path, data)
-        .map_err(|e| Error::Other(format!("failed to write temp file: {e}")))?;
+    let mut tmp = tempfile::Builder::new()
+        .prefix("envstash-")
+        .suffix(&suffix)
+        .tempfile()
+        .map_err(|e| Error::Other(format!("failed to create temp file: {e}")))?;
 
-    let mut cmd = Command::new("gh");
+    tmp.write_all(data)
+        .map_err(|e| Error::Other(format!("failed to write temp file: {e}")))?;
+    tmp.flush()
+        .map_err(|e| Error::Other(format!("failed to flush temp file: {e}")))?;
+
+    let mut cmd = spawn_clean("gh");
     cmd.arg("gist").arg("create");
 
     if public {
         cmd.arg("--public");
     }
 
-    cmd.arg(&file_path)
+    cmd.arg(tmp.path())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -53,9 +59,7 @@ pub fn send(data: &[u8], public: bool, filename: Option<&str>) -> Result<String>
         )));
     }
 
-    // Clean up temp file.
-    let _ = std::fs::remove_file(&file_path);
-
+    // `tmp` auto-deletes on Drop.
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if url.is_empty() {
         return Err(Error::Other(
@@ -74,8 +78,10 @@ pub fn fetch(gist_id: &str) -> Result<Vec<u8>> {
         ));
     }
 
-    let output = Command::new("gh")
-        .args(["gist", "view", gist_id, "--raw"])
+    // `--` stops option parsing so a malicious gist ID starting with `-`
+    // cannot be interpreted as a `gh` flag.
+    let output = spawn_clean("gh")
+        .args(["gist", "view", "--raw", "--", gist_id])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

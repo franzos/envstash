@@ -137,7 +137,7 @@ envstash send --encrypt --recipient <key_id> > export.gpg
 
 # Receive
 envstash receive export.env
-cat export.enc | envstash receive --password secret
+cat export.enc | envstash receive --password-file ~/.secret/pw
 
 # Full store backup
 envstash dump backup.json
@@ -177,7 +177,7 @@ All transport backends work with encryption:
 
 ```bash
 envstash send --encrypt --encryption-method password --to
-envstash receive --from https://0x0.st/abc.env --password secret
+envstash receive --from https://0x0.st/abc.env --password-file ~/.secret/pw
 ```
 
 The default target for bare `--to` can be changed in `~/.config/envstash/config.toml`:

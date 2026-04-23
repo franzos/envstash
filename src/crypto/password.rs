@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use argon2::Argon2;
 use argon2::password_hash::SaltString;
 use rand::rngs::OsRng;
@@ -83,14 +85,52 @@ pub fn get_password() -> Result<String> {
     prompt_password("Password: ")
 }
 
-/// Resolve a password from an explicit value, environment variable, or prompt.
+/// Resolve a password from a password file, environment variable, or prompt.
 ///
-/// Priority: explicit CLI argument > `ENVSTASH_PASSWORD` env var > interactive prompt.
-pub fn resolve_password(explicit: Option<&str>) -> Result<String> {
-    if let Some(pw) = explicit {
-        return Ok(pw.to_string());
+/// Priority: `--password-file <path>` > `ENVSTASH_PASSWORD` env var >
+/// interactive prompt.
+///
+/// When a file is provided, the contents are read and the trailing newline
+/// (CR / LF / CRLF) is stripped. On unix, the file must have mode 0600 (or
+/// otherwise have no group/world bits set) — we refuse to read anything
+/// lax so a misconfigured `.password` can't be slurped by other users.
+pub fn resolve_password(password_file: Option<&Path>) -> Result<String> {
+    if let Some(path) = password_file {
+        return read_password_file(path);
     }
     get_password()
+}
+
+fn read_password_file(path: &Path) -> Result<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let meta = std::fs::metadata(path)
+            .map_err(|e| Error::Other(format!("failed to stat password file: {e}")))?;
+        let mode = meta.permissions().mode();
+        // Refuse if any group/world bits are set. We allow execute for self
+        // since that's irrelevant for readability.
+        if mode & 0o077 != 0 {
+            return Err(Error::Other(format!(
+                "refusing to read password file {}: permissions too lax (mode {:o}); chmod 600",
+                path.display(),
+                mode & 0o777
+            )));
+        }
+    }
+
+    let raw = std::fs::read_to_string(path)
+        .map_err(|e| Error::Other(format!("failed to read password file: {e}")))?;
+    // Strip trailing CRLF / LF / CR (one set), preserving interior whitespace.
+    let trimmed = raw
+        .strip_suffix("\r\n")
+        .or_else(|| raw.strip_suffix('\n'))
+        .or_else(|| raw.strip_suffix('\r'))
+        .unwrap_or(&raw);
+    if trimmed.is_empty() {
+        return Err(Error::Other("password file is empty".to_string()));
+    }
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -143,9 +183,17 @@ mod tests {
     }
 
     #[test]
-    fn resolve_password_explicit() {
-        let pw = resolve_password(Some("explicit-pw")).unwrap();
-        assert_eq!(pw, "explicit-pw");
+    fn resolve_password_from_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pw");
+        std::fs::write(&path, "file-pw\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let pw = resolve_password(Some(&path)).unwrap();
+        assert_eq!(pw, "file-pw");
     }
 
     #[test]
@@ -161,14 +209,48 @@ mod tests {
     }
 
     #[test]
-    fn resolve_password_explicit_overrides_env() {
+    fn resolve_password_file_overrides_env() {
         unsafe {
             std::env::set_var("ENVSTASH_PASSWORD", "env-pw");
         }
-        let pw = resolve_password(Some("explicit-pw")).unwrap();
-        assert_eq!(pw, "explicit-pw");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pw");
+        std::fs::write(&path, "file-pw").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let pw = resolve_password(Some(&path)).unwrap();
+        assert_eq!(pw, "file-pw");
         unsafe {
             std::env::remove_var("ENVSTASH_PASSWORD");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_password_file_rejects_lax_perms() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pw");
+        std::fs::write(&path, "pw").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let err = resolve_password(Some(&path)).unwrap_err().to_string();
+        assert!(err.contains("permissions too lax"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn resolve_password_file_empty_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pw");
+        std::fs::write(&path, "").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let err = resolve_password(Some(&path)).unwrap_err().to_string();
+        assert!(err.contains("empty"), "unexpected: {err}");
     }
 }

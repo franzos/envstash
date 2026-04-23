@@ -35,7 +35,7 @@ pub fn send(
         ssh::send(data, target)?;
         Ok(None)
     } else if is_url(target) {
-        let headers = config::load().send.headers;
+        let headers = config::load().send.resolve_headers_for_url(target);
         let url = paste::send(data, target, &headers)?;
         Ok(Some(url))
     } else {
@@ -55,7 +55,7 @@ pub fn fetch(source: &str) -> Result<Vec<u8>> {
         // If the gist content looks base64-encoded, decode it.
         maybe_base64_decode(&raw)
     } else if is_url(source) {
-        let headers = config::load().send.headers;
+        let headers = config::load().send.resolve_headers_for_url(source);
         paste::fetch(source, &headers)
     } else {
         Err(Error::Other(format!(
@@ -80,24 +80,25 @@ fn is_gist_url(s: &str) -> bool {
     s.starts_with("https://gist.github.com/") || s.starts_with("http://gist.github.com/")
 }
 
-/// If the data looks like a base64-encoded blob (no whitespace-separated words,
-/// valid base64 chars), attempt to decode. Otherwise return as-is.
+/// If the data decodes as base64 to a known envstash transport magic
+/// (`EVPW` for transport-encrypted v1, or `-----BEGIN PGP` for armored
+/// GPG), return the decoded bytes. Otherwise return the input as-is.
 fn maybe_base64_decode(data: &[u8]) -> Result<Vec<u8>> {
     let text = match std::str::from_utf8(data) {
         Ok(t) => t.trim(),
         Err(_) => return Ok(data.to_vec()),
     };
 
-    // If it starts with known plaintext markers, don't decode.
-    if text.starts_with("# envstash") || text.starts_with('{') {
-        return Ok(data.to_vec());
-    }
-
-    // Try base64 decode.
     use base64::Engine;
-    match base64::engine::general_purpose::STANDARD.decode(text) {
-        Ok(decoded) => Ok(decoded),
-        Err(_) => Ok(data.to_vec()),
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(text) {
+        Ok(d) => d,
+        Err(_) => return Ok(data.to_vec()),
+    };
+
+    if decoded.starts_with(b"EVPW") || decoded.starts_with(b"-----BEGIN PGP") {
+        Ok(decoded)
+    } else {
+        Ok(data.to_vec())
     }
 }
 
@@ -180,12 +181,32 @@ mod tests {
     }
 
     #[test]
-    fn maybe_decode_actual_base64() {
+    fn maybe_decode_evpw_magic() {
         use base64::Engine;
-        let original = b"secret binary data";
+        let mut original = b"EVPW".to_vec();
+        original.extend_from_slice(b"\x01plus some payload bytes");
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&original);
+        let result = maybe_base64_decode(encoded.as_bytes()).unwrap();
+        assert_eq!(result, original);
+    }
+
+    #[test]
+    fn maybe_decode_pgp_armored() {
+        use base64::Engine;
+        let original = b"-----BEGIN PGP MESSAGE-----\nabc\n-----END PGP MESSAGE-----\n";
         let encoded = base64::engine::general_purpose::STANDARD.encode(original);
         let result = maybe_base64_decode(encoded.as_bytes()).unwrap();
         assert_eq!(result, original);
+    }
+
+    #[test]
+    fn maybe_decode_unknown_base64_passthrough() {
+        use base64::Engine;
+        let original = b"arbitrary binary data without magic";
+        let encoded = base64::engine::general_purpose::STANDARD.encode(original);
+        let result = maybe_base64_decode(encoded.as_bytes()).unwrap();
+        // Should return the raw base64 input unchanged.
+        assert_eq!(result, encoded.as_bytes());
     }
 
     #[test]
@@ -319,7 +340,7 @@ mod tests {
         }
 
         // Also verify the user is actually authenticated.
-        let auth = std::process::Command::new("gh")
+        let auth = crate::util::subprocess::spawn_clean("gh")
             .args(["auth", "status"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -384,7 +405,7 @@ mod tests {
         assert_eq!(parsed.entries[1].value, "sk-test-12345");
 
         // Cleanup: delete the gist so we don't leave litter.
-        let _ = std::process::Command::new("gh")
+        let _ = crate::util::subprocess::spawn_clean("gh")
             .args(["gist", "delete", &id])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

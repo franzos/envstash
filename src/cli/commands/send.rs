@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::path::Path;
 
 use colored::Colorize;
 
@@ -22,7 +23,7 @@ pub fn run(
     encrypt: bool,
     encryption_method: &str,
     recipients: &[String],
-    password: Option<&str>,
+    password_file: Option<&Path>,
     force: bool,
     to: Option<&str>,
     public: bool,
@@ -68,7 +69,7 @@ pub fn run(
             serialized.as_bytes(),
             encryption_method,
             recipients,
-            password,
+            password_file,
         )?
     } else {
         serialized.into_bytes()
@@ -113,11 +114,11 @@ fn encrypt_export(
     data: &[u8],
     method: &str,
     recipients: &[String],
-    password: Option<&str>,
+    password_file: Option<&Path>,
 ) -> Result<Vec<u8>> {
     match method {
         "password" => {
-            let pw = crate::crypto::password::resolve_password(password)?;
+            let pw = crate::crypto::password::resolve_password(password_file)?;
             transport::encrypt_password(data, &pw)
         }
         _ => {
@@ -172,7 +173,7 @@ fn run_safety_checks(
     }
 
     // Check: current .env on disk differs from saved version.
-    if let Some(disk_hash) = cli::disk_content_hash(project_path, &save.file_path)
+    if let Some(disk_hash) = cli::disk_content_hash(project_path, &save.file_path)?
         && disk_hash != save.content_hash
     {
         return Err(Error::Other(
@@ -194,10 +195,10 @@ mod tests {
 
     #[test]
     fn find_latest_on_branch() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -209,7 +210,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -227,10 +228,10 @@ mod tests {
 
     #[test]
     fn find_latest_fallback_to_any_branch() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -255,10 +256,10 @@ mod tests {
 
     #[test]
     fn find_latest_with_file_filter() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -270,7 +271,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".db-env",
             "main",
@@ -397,10 +398,23 @@ mod tests {
 
     // ----- Transport encryption integration tests -----
 
+    fn write_pw_file(dir: &tempfile::TempDir, pw: &str) -> std::path::PathBuf {
+        let path = dir.path().join("pw");
+        std::fs::write(&path, pw).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        path
+    }
+
     #[test]
     fn encrypt_export_password() {
+        let dir = tempfile::tempdir().unwrap();
+        let pw_file = write_pw_file(&dir, "test-pw");
         let data = b"# envstash export\nDB_HOST=localhost\n";
-        let encrypted = encrypt_export(data, "password", &[], Some("test-pw")).unwrap();
+        let encrypted = encrypt_export(data, "password", &[], Some(&pw_file)).unwrap();
         assert!(encrypted.starts_with(b"EVPW"));
 
         // Decrypt and verify round-trip.
@@ -412,11 +426,12 @@ mod tests {
     fn encrypt_export_password_no_password_errors() {
         // Without password and without ENVSTASH_PASSWORD, this should
         // fall through to prompt which will fail in test context.
-        // We test by setting the env var.
+        // We test by using a password file.
+        let dir = tempfile::tempdir().unwrap();
+        let pw_file = write_pw_file(&dir, "pw");
         let data = b"test data";
 
-        // With explicit password it works.
-        let result = encrypt_export(data, "password", &[], Some("pw"));
+        let result = encrypt_export(data, "password", &[], Some(&pw_file));
         assert!(result.is_ok());
     }
 
@@ -430,10 +445,10 @@ mod tests {
 
     #[test]
     fn share_password_encrypt_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -467,10 +482,10 @@ mod tests {
 
     #[test]
     fn share_text_format_password_encrypt_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",

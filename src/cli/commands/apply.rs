@@ -5,6 +5,7 @@ use colored::Colorize;
 use crate::cli::{self, output};
 use crate::error::{Error, Result};
 use crate::parser;
+use crate::util::fs as util_fs;
 
 /// Run the `apply` command: restore a saved version to disk.
 pub fn run(
@@ -27,6 +28,9 @@ pub fn run(
         Some(d) => Path::new(d).to_path_buf(),
         None => Path::new(&project_path).join(&save.file_path),
     };
+
+    // Refuse to operate on symlinks (both read and write).
+    util_fs::refuse_symlink(&target_path, "apply")?;
 
     // Validate that the target path stays within the project directory.
     validate_target_path(&target_path, &project_path)?;
@@ -60,7 +64,7 @@ pub fn run(
         std::fs::create_dir_all(parent)?;
     }
 
-    std::fs::write(&target_path, &content)?;
+    util_fs::write_file_restricted(&target_path, content.as_bytes())?;
     println!(
         "{} {}",
         "Applied version to".green().bold(),
@@ -91,7 +95,9 @@ fn validate_target_path(target: &Path, project_path: &str) -> Result<()> {
         })?
     } else {
         // For new files, canonicalize the parent and append the file name.
-        let parent = target.parent().unwrap_or(Path::new("."));
+        let parent = target
+            .parent()
+            .ok_or_else(|| Error::Other("target path has no parent".to_string()))?;
         let file_name = target
             .file_name()
             .ok_or_else(|| Error::Other("Invalid target path".to_string()))?;

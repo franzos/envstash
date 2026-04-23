@@ -1,4 +1,6 @@
-use rusqlite::{Connection, params};
+use std::collections::HashMap;
+
+use rusqlite::{Connection, Transaction, params, params_from_iter};
 
 use crate::error::{Error, Result};
 use crate::types::{EnvEntry, ProjectSummary, SaveMetadata};
@@ -15,6 +17,34 @@ pub fn get_config(conn: &Connection, key: &str) -> Result<Option<String>> {
         Some(row) => Ok(Some(row.get(0)?)),
         None => Ok(None),
     }
+}
+
+/// Fetch several config values in a single query.
+///
+/// Keys absent from the table are omitted from the returned map. Useful for
+/// commands that want to avoid paying two round trips for e.g. both
+/// `encryption_mode` and `key_file`.
+pub fn get_configs(conn: &Connection, keys: &[&str]) -> Result<HashMap<String, String>> {
+    if keys.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let placeholders = vec!["?"; keys.len()].join(", ");
+    let sql = format!("SELECT key, value FROM config WHERE key IN ({placeholders})");
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(keys.iter()), |row| {
+        let k: String = row.get(0)?;
+        let v: String = row.get(1)?;
+        Ok((k, v))
+    })?;
+
+    let mut out = HashMap::with_capacity(keys.len());
+    for row in rows {
+        let (k, v) = row?;
+        out.insert(k, v);
+    }
+    Ok(out)
 }
 
 /// Set a config value (insert or update).
@@ -101,7 +131,7 @@ pub struct SaveInput<'a> {
 /// encrypted, and an HMAC is computed over metadata fields.
 #[allow(clippy::too_many_arguments)]
 pub fn insert_save(
-    conn: &Connection,
+    conn: &mut Connection,
     project_path: &str,
     file_path: &str,
     branch: &str,
@@ -130,7 +160,7 @@ pub fn insert_save(
 /// Insert a save with an optional message. Returns the save id.
 #[allow(clippy::too_many_arguments)]
 pub fn insert_save_with_message(
-    conn: &Connection,
+    conn: &mut Connection,
     project_path: &str,
     file_path: &str,
     branch: &str,
@@ -158,7 +188,22 @@ pub fn insert_save_with_message(
 }
 
 /// Insert a save using a `SaveInput` struct.
-pub fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64> {
+///
+/// Opens a single transaction covering the save row and all its entries, so a
+/// crash mid-insert leaves the database consistent.
+pub fn insert_save_input(conn: &mut Connection, input: &SaveInput<'_>) -> Result<i64> {
+    let tx = conn.transaction()?;
+    let save_id = insert_save_into_tx(&tx, input)?;
+    tx.commit()?;
+    Ok(save_id)
+}
+
+/// Insert a save + its entries into an already-open transaction. The caller is
+/// responsible for committing.
+///
+/// When `aes_key` is `Some`, the AES cipher is built once and reused across
+/// every entry in the batch.
+fn insert_save_into_tx(tx: &Transaction<'_>, input: &SaveInput<'_>) -> Result<i64> {
     let hmac_value = if let Some(key) = input.aes_key {
         let data = format_hmac_data(
             input.project_path,
@@ -175,7 +220,7 @@ pub fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64
 
     let message_value = input.message.unwrap_or("");
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO saves (project_path, file_path, branch, commit_hash, timestamp, content_hash, hmac, message)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
@@ -185,16 +230,22 @@ pub fn insert_save_input(conn: &Connection, input: &SaveInput<'_>) -> Result<i64
         ],
     )?;
 
-    let save_id = conn.last_insert_rowid();
+    let save_id = tx.last_insert_rowid();
 
     let mut stmt =
-        conn.prepare("INSERT INTO entries (save_id, key, value, comment) VALUES (?1, ?2, ?3, ?4)")?;
+        tx.prepare("INSERT INTO entries (save_id, key, value, comment) VALUES (?1, ?2, ?3, ?4)")?;
+
+    // Build the cipher once for the whole batch when encryption is enabled.
+    let cipher = match input.aes_key {
+        Some(key) => Some(crate::crypto::aes::build_cipher(key)?),
+        None => None,
+    };
 
     for entry in input.entries {
         let comment_str = entry.comment.as_deref().unwrap_or("");
-        if let Some(key) = input.aes_key {
-            let enc_value = crate::crypto::aes::encrypt(key, entry.value.as_bytes())?;
-            let enc_comment = crate::crypto::aes::encrypt(key, comment_str.as_bytes())?;
+        if let Some(c) = &cipher {
+            let enc_value = crate::crypto::aes::encrypt_with_cipher(c, entry.value.as_bytes())?;
+            let enc_comment = crate::crypto::aes::encrypt_with_cipher(c, comment_str.as_bytes())?;
             stmt.execute(params![save_id, entry.key, enc_value, enc_comment])?;
         } else {
             stmt.execute(params![save_id, entry.key, entry.value, comment_str])?;
@@ -238,7 +289,7 @@ fn read_bytes_from_row(row: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result<
 
 /// Test-only: expose `read_bytes_from_row` for verifying raw DB contents.
 #[cfg(test)]
-pub fn tests_read_bytes(row: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result<Vec<u8>> {
+pub(crate) fn tests_read_bytes(row: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result<Vec<u8>> {
     read_bytes_from_row(row, idx)
 }
 
@@ -282,10 +333,7 @@ pub fn list_saves(
             format!("%{f}")
         };
         param_values.push(Box::new(pattern));
-        idx += 1;
     }
-
-    let _ = idx; // suppress unused warning
 
     sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT {max}"));
 
@@ -317,7 +365,11 @@ pub fn list_saves_history(
     let mut stmt = conn.prepare(&sql)?;
 
     let rows = stmt.query_map(
-        params![project_path, exclude_branch, max as i64],
+        params![
+            project_path,
+            exclude_branch,
+            i64::try_from(max).unwrap_or(i64::MAX)
+        ],
         row_to_save_metadata,
     )?;
 
@@ -331,7 +383,8 @@ pub fn list_saves_history(
 /// Get entries for a given save id.
 ///
 /// When `aes_key` is `Some`, values and comments are decrypted from
-/// AES-256-GCM blobs. When `None`, they are read as plaintext.
+/// AES-256-GCM blobs. When `None`, they are read as plaintext. The AES cipher
+/// is built once and reused across the batch.
 pub fn get_save_entries(
     conn: &Connection,
     save_id: i64,
@@ -355,16 +408,22 @@ pub fn get_save_entries(
         result
     };
 
+    // Build the cipher once for the whole batch.
+    let cipher = match aes_key {
+        Some(k) => Some(crate::crypto::aes::build_cipher(k)?),
+        None => None,
+    };
+
     // Decrypt if needed and build EnvEntry vec.
     let mut results = Vec::new();
     for (key, value_bytes, comment_bytes) in raw_rows {
-        let (value, comment_str) = if let Some(k) = aes_key {
-            let v = crate::crypto::aes::decrypt(k, &value_bytes)?;
-            let c = crate::crypto::aes::decrypt(k, &comment_bytes)?;
+        let (value, comment_str) = if let Some(c) = &cipher {
+            let v = crate::crypto::aes::decrypt_with_cipher(c, &value_bytes)?;
+            let cmt = crate::crypto::aes::decrypt_with_cipher(c, &comment_bytes)?;
             (
                 String::from_utf8(v)
                     .map_err(|e| Error::Decryption(format!("invalid UTF-8 in value: {e}")))?,
-                String::from_utf8(c)
+                String::from_utf8(cmt)
                     .map_err(|e| Error::Decryption(format!("invalid UTF-8 in comment: {e}")))?,
             )
         } else {
@@ -425,35 +484,43 @@ pub fn delete_save(conn: &Connection, save_id: i64) -> Result<()> {
 }
 
 /// Delete all saves for a branch within a project. Returns number deleted.
+///
+/// The two DELETE statements run in a single transaction, so a crash cannot
+/// leave behind orphan entries tied to saves that have already disappeared.
 pub fn delete_saves_by_branch(
-    conn: &Connection,
+    conn: &mut Connection,
     project_path: &str,
     branch: &str,
 ) -> Result<usize> {
-    // First delete entries.
-    conn.execute(
+    let tx = conn.transaction()?;
+    tx.execute(
         "DELETE FROM entries WHERE save_id IN
          (SELECT id FROM saves WHERE project_path = ?1 AND branch = ?2)",
         params![project_path, branch],
     )?;
-    let count = conn.execute(
+    let count = tx.execute(
         "DELETE FROM saves WHERE project_path = ?1 AND branch = ?2",
         params![project_path, branch],
     )?;
+    tx.commit()?;
     Ok(count)
 }
 
 /// Delete all saves for a project. Returns number deleted.
-pub fn delete_saves_by_project(conn: &Connection, project_path: &str) -> Result<usize> {
-    conn.execute(
+///
+/// Runs both DELETE statements in a single transaction.
+pub fn delete_saves_by_project(conn: &mut Connection, project_path: &str) -> Result<usize> {
+    let tx = conn.transaction()?;
+    tx.execute(
         "DELETE FROM entries WHERE save_id IN
          (SELECT id FROM saves WHERE project_path = ?1)",
         params![project_path],
     )?;
-    let count = conn.execute(
+    let count = tx.execute(
         "DELETE FROM saves WHERE project_path = ?1",
         params![project_path],
     )?;
+    tx.commit()?;
     Ok(count)
 }
 
@@ -524,6 +591,10 @@ pub fn get_all_saves(
 // ---------------------------------------------------------------------------
 
 /// Check if a save with the given content hash already exists in a project.
+///
+/// Accepts any connection-like handle; `rusqlite::Transaction` derefs to
+/// `Connection`, so this works both at top level and inside an open
+/// transaction.
 fn has_save_with_hash(conn: &Connection, project_path: &str, content_hash: &str) -> Result<bool> {
     let mut stmt =
         conn.prepare("SELECT 1 FROM saves WHERE project_path = ?1 AND content_hash = ?2 LIMIT 1")?;
@@ -534,24 +605,28 @@ fn has_save_with_hash(conn: &Connection, project_path: &str, content_hash: &str)
 /// Bulk-insert saves from a dump. Skips saves that already exist (by
 /// project_path + content_hash).
 ///
+/// All inserts run inside a single transaction; committing once at the end
+/// avoids the per-statement `fsync` overhead of autocommit mode.
+///
 /// Returns `(inserted_count, skipped_count)`.
 pub fn insert_all_saves(
-    conn: &Connection,
+    conn: &mut Connection,
     saves: &[crate::export::DumpSave],
     aes_key: Option<&[u8; 32]>,
 ) -> Result<(usize, usize)> {
+    let tx = conn.transaction()?;
     let mut inserted = 0;
     let mut skipped = 0;
 
     for save in saves {
-        if has_save_with_hash(conn, &save.project_path, &save.content_hash)? {
+        if has_save_with_hash(&tx, &save.project_path, &save.content_hash)? {
             skipped += 1;
             continue;
         }
 
         let entries: Vec<EnvEntry> = save.entries.iter().map(EnvEntry::from).collect();
-        insert_save_input(
-            conn,
+        insert_save_into_tx(
+            &tx,
             &SaveInput {
                 project_path: &save.project_path,
                 file_path: &save.file,
@@ -567,6 +642,7 @@ pub fn insert_all_saves(
         inserted += 1;
     }
 
+    tx.commit()?;
     Ok((inserted, skipped))
 }
 
@@ -601,10 +677,10 @@ mod tests {
 
     #[test]
     fn insert_save_with_message_stores_and_retrieves() {
-        let conn = crate::test_helpers::test_conn();
+        let mut conn = crate::test_helpers::test_conn();
         let entries = crate::test_helpers::sample_entries();
         let id = insert_save_with_message(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -625,10 +701,10 @@ mod tests {
 
     #[test]
     fn insert_save_without_message_returns_none() {
-        let conn = crate::test_helpers::test_conn();
+        let mut conn = crate::test_helpers::test_conn();
         let entries = crate::test_helpers::sample_entries();
         insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -643,5 +719,30 @@ mod tests {
         let saves = list_saves(&conn, "/proj", None, None, 10, None).unwrap();
         assert_eq!(saves.len(), 1);
         assert_eq!(saves[0].message, None);
+    }
+
+    #[test]
+    fn get_configs_batches_lookup() {
+        let conn = crate::test_helpers::test_conn();
+        set_config(&conn, "encryption_mode", "password").unwrap();
+        set_config(&conn, "key_file", "/tmp/key").unwrap();
+        set_config(&conn, "version", "1").unwrap();
+
+        let out = get_configs(&conn, &["encryption_mode", "key_file", "missing"]).unwrap();
+        assert_eq!(
+            out.get("encryption_mode").map(String::as_str),
+            Some("password")
+        );
+        assert_eq!(out.get("key_file").map(String::as_str), Some("/tmp/key"));
+        assert!(!out.contains_key("missing"));
+        // Unlisted keys are not returned.
+        assert!(!out.contains_key("version"));
+    }
+
+    #[test]
+    fn get_configs_empty_keys() {
+        let conn = crate::test_helpers::test_conn();
+        let out = get_configs(&conn, &[]).unwrap();
+        assert!(out.is_empty());
     }
 }

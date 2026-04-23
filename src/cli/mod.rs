@@ -296,9 +296,9 @@ pub enum Commands {
         /// GPG recipient key ID(s) for transport encryption
         #[arg(long)]
         recipient: Vec<String>,
-        /// Password for password-based transport encryption (scripted/CI use)
-        #[arg(long)]
-        password: Option<String>,
+        /// Password file for password-based transport encryption (scripted/CI use)
+        #[arg(long = "password-file", value_name = "PATH")]
+        password_file: Option<PathBuf>,
         /// Force output even when writing encrypted data to a terminal
         #[arg(long)]
         force: bool,
@@ -323,9 +323,9 @@ pub enum Commands {
         /// Path to file (reads from stdin if omitted)
         #[arg(add = ArgValueCompleter::new(PathCompleter::file()))]
         file: Option<String>,
-        /// Password for decrypting password-encrypted imports
-        #[arg(long)]
-        password: Option<String>,
+        /// Password file for decrypting password-encrypted imports
+        #[arg(long = "password-file", value_name = "PATH")]
+        password_file: Option<PathBuf>,
         /// Fetch from a remote source instead of stdin/file
         #[arg(long, value_name = "SOURCE")]
         from: Option<String>,
@@ -345,9 +345,9 @@ pub enum Commands {
         /// GPG recipient key ID(s)
         #[arg(long)]
         recipient: Vec<String>,
-        /// Password for password-based encryption
-        #[arg(long)]
-        password: Option<String>,
+        /// Password file for password-based encryption
+        #[arg(long = "password-file", value_name = "PATH")]
+        password_file: Option<PathBuf>,
     },
 
     /// Import a dump file into the store
@@ -355,9 +355,9 @@ pub enum Commands {
         /// Path to the dump file
         #[arg(add = ArgValueCompleter::new(PathCompleter::file()))]
         path: String,
-        /// Password for password-encrypted dumps
-        #[arg(long)]
-        password: Option<String>,
+        /// Password file for password-encrypted dumps
+        #[arg(long = "password-file", value_name = "PATH")]
+        password_file: Option<PathBuf>,
     },
 
     /// Show detailed usage guide with examples
@@ -475,7 +475,7 @@ fn run_command(cmd: Commands, key_file: Option<&str>) -> Result<()> {
             encrypt,
             encryption_method,
             recipient,
-            password,
+            password_file,
             force,
             to,
             public,
@@ -488,20 +488,20 @@ fn run_command(cmd: Commands, key_file: Option<&str>) -> Result<()> {
             encrypt,
             &encryption_method,
             &recipient,
-            password.as_deref(),
+            password_file.as_deref(),
             force,
             to.as_deref(),
             public,
         ),
         Commands::Receive {
             file,
-            password,
+            password_file,
             from,
         } => commands::receive::run(
             &cwd,
             file.as_deref(),
             key_file,
-            password.as_deref(),
+            password_file.as_deref(),
             from.as_deref(),
         ),
         Commands::Dump {
@@ -509,18 +509,19 @@ fn run_command(cmd: Commands, key_file: Option<&str>) -> Result<()> {
             encrypt,
             encryption_method,
             recipient,
-            password,
+            password_file,
         } => commands::dump::run(
             &path,
             encrypt,
             &encryption_method,
             &recipient,
-            password.as_deref(),
+            password_file.as_deref(),
             key_file,
         ),
-        Commands::Load { path, password } => {
-            commands::load::run(&path, password.as_deref(), key_file)
-        }
+        Commands::Load {
+            path,
+            password_file,
+        } => commands::load::run(&path, password_file.as_deref(), key_file),
         Commands::Man => unreachable!(),
     }
 }
@@ -717,19 +718,26 @@ pub fn require_store() -> Result<Connection> {
 /// Returns `Ok(None)` when encryption mode is "none".
 /// Returns `Err(EncryptionKeyRequired)` when encryption is enabled but
 /// the key file cannot be found.
+///
+/// Fetches both `encryption_mode` and `key_file` from the config table in a
+/// single round trip so commands that run with no encryption configured don't
+/// pay for two separate SELECTs.
 pub fn load_encryption_key(
     conn: &Connection,
     key_file_flag: Option<&str>,
 ) -> Result<Option<Zeroizing<[u8; 32]>>> {
-    let mode_str =
-        queries::get_config(conn, "encryption_mode")?.unwrap_or_else(|| "none".to_string());
+    let cfg = queries::get_configs(conn, &["encryption_mode", "key_file"])?;
+    let mode_str = cfg
+        .get("encryption_mode")
+        .cloned()
+        .unwrap_or_else(|| "none".to_string());
     let mode: crypto::EncryptionMode = mode_str.parse()?;
 
     if mode == crypto::EncryptionMode::None {
         return Ok(None);
     }
 
-    let db_key_path = queries::get_config(conn, "key_file")?;
+    let db_key_path = cfg.get("key_file").cloned();
     let env_key_path = std::env::var("ENVSTASH_KEY_FILE").ok();
 
     let key_path = crypto::resolve_key_file(
@@ -804,11 +812,19 @@ pub fn resolve_version(
 }
 
 /// Compute the content hash of the .env file currently on disk.
-pub fn disk_content_hash(project_path: &str, file_path: &str) -> Option<String> {
+///
+/// Returns `Ok(None)` when the file does not exist. IO errors (permission,
+/// etc.) and parse errors are propagated so callers don't silently swallow
+/// genuine problems.
+pub fn disk_content_hash(project_path: &str, file_path: &str) -> Result<Option<String>> {
     let full = PathBuf::from(project_path).join(file_path);
-    let content = std::fs::read_to_string(full).ok()?;
-    let entries = parser::parse(&content).ok()?;
-    Some(parser::content_hash(&entries))
+    let content = match std::fs::read_to_string(&full) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(Error::Io(e)),
+    };
+    let entries = parser::parse(&content)?;
+    Ok(Some(parser::content_hash(&entries)))
 }
 
 /// Prompt the user for yes/no confirmation on stderr.
@@ -1049,5 +1065,23 @@ mod tests {
                 "missing manpage heading: {heading}"
             );
         }
+    }
+
+    // -- disk_content_hash ---------------------------------------------
+
+    #[test]
+    fn disk_content_hash_missing_file_is_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = disk_content_hash(&tmp.path().to_string_lossy(), ".env").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn disk_content_hash_existing_file_returns_hash() {
+        let tmp = tempfile::tempdir().unwrap();
+        let env_path = tmp.path().join(".env");
+        fs::write(&env_path, "KEY=value\n").unwrap();
+        let result = disk_content_hash(&tmp.path().to_string_lossy(), ".env").unwrap();
+        assert!(result.is_some());
     }
 }

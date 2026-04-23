@@ -1,17 +1,12 @@
 use std::path::Path;
-use std::process::Command;
 
 use crate::error::{Error, Result};
 use crate::git;
+use crate::util::subprocess::spawn_clean;
 
 /// Check whether `gpg` is available on the system.
 pub fn is_available() -> bool {
-    Command::new("gpg")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    crate::util::subprocess::is_available("gpg")
 }
 
 /// Read the default GPG recipient from git `user.signingkey`.
@@ -36,7 +31,7 @@ pub fn resolve_recipients(explicit: &[String], cwd: &Path) -> Result<Vec<String>
 }
 
 pub fn list_secret_keys() -> Result<Vec<(String, String)>> {
-    let output = Command::new("gpg")
+    let output = spawn_clean("gpg")
         .args(["--list-secret-keys", "--with-colons", "--batch"])
         .output()
         .map_err(|e| Error::Gpg(format!("failed to run gpg --list-secret-keys: {e}")))?;
@@ -68,7 +63,7 @@ pub fn list_secret_keys() -> Result<Vec<(String, String)>> {
 /// Runs `gpg --list-packets --batch <path>` and parses lines containing
 /// `keyid ` to extract the key ID (last field on those lines).
 pub fn key_recipients(path: &Path) -> Result<Vec<String>> {
-    let output = Command::new("gpg")
+    let output = spawn_clean("gpg")
         .args(["--list-packets", "--batch"])
         .arg(path)
         .output()
@@ -105,7 +100,7 @@ pub fn gpg_encrypt(data: &[u8], recipients: &[String]) -> Result<Vec<u8>> {
         return Err(Error::NoGpgRecipient);
     }
 
-    let mut cmd = Command::new("gpg");
+    let mut cmd = spawn_clean("gpg");
     cmd.arg("--encrypt")
         .arg("--armor")
         .arg("--batch")
@@ -125,9 +120,13 @@ pub fn gpg_encrypt(data: &[u8], recipients: &[String]) -> Result<Vec<u8>> {
         .spawn()
         .map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
 
-    // Write data to gpg's stdin.
-    if let Some(ref mut stdin) = child.stdin {
+    // Write data to gpg's stdin, dropping the handle before wait to signal EOF.
+    {
         use std::io::Write;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| Error::Gpg("gpg stdin not available".into()))?;
         stdin
             .write_all(data)
             .map_err(|e| Error::Gpg(format!("failed to write to gpg stdin: {e}")))?;
@@ -135,7 +134,7 @@ pub fn gpg_encrypt(data: &[u8], recipients: &[String]) -> Result<Vec<u8>> {
 
     let output = child
         .wait_with_output()
-        .map_err(|e| Error::Gpg(format!("failed to wait on gpg: {e}")))?;
+        .map_err(|e| Error::Gpg(format!("gpg wait failed: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -154,7 +153,7 @@ pub fn gpg_decrypt(data: &[u8]) -> Result<Vec<u8>> {
         return Err(Error::GpgNotAvailable);
     }
 
-    let mut cmd = Command::new("gpg");
+    let mut cmd = spawn_clean("gpg");
     cmd.arg("--decrypt")
         .arg("--batch")
         .arg("--yes")
@@ -166,8 +165,12 @@ pub fn gpg_decrypt(data: &[u8]) -> Result<Vec<u8>> {
         .spawn()
         .map_err(|e| Error::Gpg(format!("failed to spawn gpg: {e}")))?;
 
-    if let Some(ref mut stdin) = child.stdin {
+    {
         use std::io::Write;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| Error::Gpg("gpg stdin not available".into()))?;
         stdin
             .write_all(data)
             .map_err(|e| Error::Gpg(format!("failed to write to gpg stdin: {e}")))?;
@@ -175,7 +178,7 @@ pub fn gpg_decrypt(data: &[u8]) -> Result<Vec<u8>> {
 
     let output = child
         .wait_with_output()
-        .map_err(|e| Error::Gpg(format!("failed to wait on gpg: {e}")))?;
+        .map_err(|e| Error::Gpg(format!("gpg wait failed: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -227,7 +230,7 @@ mod tests {
         }
 
         // Try to find a usable GPG key. If none exist, skip.
-        let output = Command::new("gpg")
+        let output = spawn_clean("gpg")
             .args(["--list-keys", "--with-colons", "--batch"])
             .output();
 

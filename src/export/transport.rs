@@ -208,7 +208,9 @@ mod tests {
 
     #[test]
     fn password_round_trip_large_data() {
-        let data: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
+        let data: Vec<u8> = (0..10_000)
+            .map(|i| u8::try_from(i & 0xff).unwrap())
+            .collect();
         let encrypted = encrypt_password(&data, "big-data-pw").unwrap();
         let decrypted = decrypt_password(&encrypted, "big-data-pw").unwrap();
         assert_eq!(decrypted, data);

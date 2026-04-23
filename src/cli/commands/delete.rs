@@ -14,7 +14,7 @@ pub fn run(
     all: bool,
     force: bool,
 ) -> Result<()> {
-    let conn = cli::require_store()?;
+    let mut conn = cli::require_store()?;
     let (project_path, git_ctx) = cli::resolve_project(cwd)?;
 
     if let Some(b) = branch {
@@ -31,7 +31,7 @@ pub fn run(
             return Ok(());
         }
 
-        let deleted = queries::delete_saves_by_branch(&conn, &project_path, b)?;
+        let deleted = queries::delete_saves_by_branch(&mut conn, &project_path, b)?;
         println!("{}", format!("Deleted {deleted} versions.").green().bold());
         return Ok(());
     }
@@ -54,7 +54,7 @@ pub fn run(
             return Ok(());
         }
 
-        let deleted = queries::delete_saves_by_project(&conn, &project_path)?;
+        let deleted = queries::delete_saves_by_project(&mut conn, &project_path)?;
         println!("{}", format!("Deleted {deleted} versions.").green().bold());
         return Ok(());
     }

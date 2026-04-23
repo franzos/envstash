@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::cli;
@@ -7,6 +6,7 @@ use crate::crypto;
 use crate::error::{Error, Result};
 use crate::store;
 use crate::store::queries;
+use crate::util::fs as util_fs;
 
 /// Run the `init` command: create store directory and database.
 pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Result<()> {
@@ -38,12 +38,15 @@ pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Resu
                 .map(PathBuf::from)
                 .unwrap_or_else(|| dir.join("key.gpg"));
 
-            write_file_restricted(&key_path, &wrapped)?;
+            util_fs::write_file_restricted_new(&key_path, &wrapped)?;
 
             store::init(&conn, "password")?;
 
             if key_file.is_some() {
-                queries::set_config(&conn, "key_file", key_path.to_str().unwrap_or(""))?;
+                let key_path_str = key_path
+                    .to_str()
+                    .ok_or_else(|| Error::Other("key file path must be valid UTF-8".to_string()))?;
+                queries::set_config(&conn, "key_file", key_path_str)?;
             }
         }
         "gpg" => {
@@ -75,12 +78,15 @@ pub fn run(encrypt: &str, recipients: &[String], key_file: Option<&str>) -> Resu
                 .map(PathBuf::from)
                 .unwrap_or_else(|| dir.join("key.gpg"));
 
-            write_file_restricted(&key_path, &wrapped)?;
+            util_fs::write_file_restricted_new(&key_path, &wrapped)?;
 
             store::init(&conn, "gpg")?;
 
             if key_file.is_some() {
-                queries::set_config(&conn, "key_file", key_path.to_str().unwrap_or(""))?;
+                let key_path_str = key_path
+                    .to_str()
+                    .ok_or_else(|| Error::Other("key file path must be valid UTF-8".to_string()))?;
+                queries::set_config(&conn, "key_file", key_path_str)?;
             }
 
             set_file_permissions(&path)?;
@@ -121,29 +127,6 @@ fn get_init_password() -> Result<String> {
         return Err(Error::Other("Passwords do not match.".to_string()));
     }
     Ok(pw1)
-}
-
-/// Write data to a file, creating it atomically with mode 0600 on Unix.
-///
-/// Uses `create_new` to ensure the file does not already exist, and sets
-/// permissions at creation time to avoid a TOCTOU window where the file
-/// is world-readable.
-fn write_file_restricted(path: &std::path::Path, data: &[u8]) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)?;
-        file.write_all(data)?;
-    }
-    #[cfg(not(unix))]
-    {
-        fs::write(path, data)?;
-    }
-    Ok(())
 }
 
 /// Set file permissions to 0600 on Unix.

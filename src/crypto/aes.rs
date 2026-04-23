@@ -17,13 +17,20 @@ pub fn generate_key() -> [u8; KEY_LEN] {
     buf
 }
 
-/// Encrypt plaintext with AES-256-GCM.
+/// Build an AES-256-GCM cipher from a raw key.
+///
+/// Callers that encrypt or decrypt many values in a loop can build the cipher
+/// once and pass it to [`encrypt_with_cipher`] / [`decrypt_with_cipher`] to
+/// avoid re-expanding the key schedule per call.
+pub fn build_cipher(key: &[u8]) -> Result<Aes256Gcm> {
+    Aes256Gcm::new_from_slice(key).map_err(|e| Error::Encryption(e.to_string()))
+}
+
+/// Encrypt plaintext with an existing AES-256-GCM cipher.
 ///
 /// Returns `nonce (12 bytes) || ciphertext || tag (16 bytes)`.
 /// The `aes-gcm` crate appends the tag to the ciphertext automatically.
-pub fn encrypt(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>> {
-    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Encryption(e.to_string()))?;
-
+pub fn encrypt_with_cipher(cipher: &Aes256Gcm, plaintext: &[u8]) -> Result<Vec<u8>> {
     let nonce = Aes256Gcm::generate_nonce(OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext)
@@ -35,24 +42,41 @@ pub fn encrypt(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>> {
     Ok(blob)
 }
 
-/// Decrypt an AES-256-GCM blob produced by [`encrypt`].
+/// Decrypt an AES-256-GCM blob with an existing cipher.
 ///
 /// Expects `nonce (12 bytes) || ciphertext || tag`.
-pub fn decrypt(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>> {
+pub fn decrypt_with_cipher(cipher: &Aes256Gcm, blob: &[u8]) -> Result<Vec<u8>> {
     if blob.len() < NONCE_LEN {
         return Err(Error::Decryption(
             "ciphertext too short (missing nonce)".to_string(),
         ));
     }
-
-    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Decryption(e.to_string()))?;
-
     let nonce = Nonce::from_slice(&blob[..NONCE_LEN]);
     let ciphertext = &blob[NONCE_LEN..];
 
     cipher
         .decrypt(nonce, ciphertext)
         .map_err(|e| Error::Decryption(e.to_string()))
+}
+
+/// Encrypt plaintext with AES-256-GCM.
+///
+/// Thin wrapper that builds a cipher from `key` and calls
+/// [`encrypt_with_cipher`]. Prefer [`build_cipher`] + [`encrypt_with_cipher`]
+/// when encrypting many values with the same key.
+pub fn encrypt(key: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>> {
+    let cipher = build_cipher(key)?;
+    encrypt_with_cipher(&cipher, plaintext)
+}
+
+/// Decrypt an AES-256-GCM blob produced by [`encrypt`].
+///
+/// Thin wrapper that builds a cipher from `key` and calls
+/// [`decrypt_with_cipher`]. Prefer [`build_cipher`] + [`decrypt_with_cipher`]
+/// when decrypting many values with the same key.
+pub fn decrypt(key: &[u8; KEY_LEN], blob: &[u8]) -> Result<Vec<u8>> {
+    let cipher = build_cipher(key)?;
+    decrypt_with_cipher(&cipher, blob)
 }
 
 #[cfg(test)]
@@ -120,5 +144,24 @@ mod tests {
         let blob2 = encrypt(&key, b"same").unwrap();
         // Random nonce means blobs differ even for same plaintext.
         assert_ne!(blob1, blob2);
+    }
+
+    #[test]
+    fn cipher_reuse_round_trip() {
+        let key = generate_key();
+        let cipher = build_cipher(&key).unwrap();
+        let blob1 = encrypt_with_cipher(&cipher, b"first").unwrap();
+        let blob2 = encrypt_with_cipher(&cipher, b"second").unwrap();
+        assert_eq!(decrypt_with_cipher(&cipher, &blob1).unwrap(), b"first");
+        assert_eq!(decrypt_with_cipher(&cipher, &blob2).unwrap(), b"second");
+    }
+
+    #[test]
+    fn cipher_reuse_wire_compatible_with_one_shot() {
+        // A blob written by `encrypt` must decrypt with `decrypt_with_cipher`.
+        let key = generate_key();
+        let blob = encrypt(&key, b"hello").unwrap();
+        let cipher = build_cipher(&key).unwrap();
+        assert_eq!(decrypt_with_cipher(&cipher, &blob).unwrap(), b"hello");
     }
 }

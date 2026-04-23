@@ -10,6 +10,7 @@ pub mod git;
 pub mod parser;
 pub mod store;
 pub mod types;
+pub mod util;
 
 #[cfg(test)]
 mod test_helpers;

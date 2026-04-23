@@ -1,18 +1,39 @@
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::error::{Error, Result};
+use crate::util::subprocess::spawn_clean;
 
 /// Parse an SSH destination from `ssh://user@host` or `user@host`.
 pub fn parse_dest(target: &str) -> &str {
     target.strip_prefix("ssh://").unwrap_or(target)
 }
 
+/// Validate an ssh destination to reject argv-option injection (leading `-`)
+/// and control characters. Allowed characters: alnum, `._+@:/-`.
+fn validate_dest(dest: &str) -> Result<()> {
+    if dest.is_empty() {
+        return Err(Error::Other("invalid ssh destination".into()));
+    }
+    if dest.starts_with('-') {
+        return Err(Error::Other("invalid ssh destination".into()));
+    }
+    let ok = dest
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '@' | ':' | '/' | '-'));
+    if !ok {
+        return Err(Error::Other("invalid ssh destination".into()));
+    }
+    Ok(())
+}
+
 /// Send data to a remote host via `ssh <dest> 'envstash receive'`.
 /// Pipes the bytes to the remote envstash receive's stdin.
 pub fn send(data: &[u8], dest: &str) -> Result<()> {
     let dest = parse_dest(dest);
+    validate_dest(dest)?;
 
-    let mut child = Command::new("ssh")
+    let mut child = spawn_clean("ssh")
+        .arg("--")
         .arg(dest)
         .arg("envstash receive")
         .stdin(Stdio::piped())
@@ -21,8 +42,12 @@ pub fn send(data: &[u8], dest: &str) -> Result<()> {
         .spawn()
         .map_err(|e| Error::Other(format!("failed to spawn ssh: {e}")))?;
 
-    if let Some(ref mut stdin) = child.stdin {
+    {
         use std::io::Write;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| Error::Other("ssh stdin not available".into()))?;
         stdin
             .write_all(data)
             .map_err(|e| Error::Other(format!("failed to write to ssh stdin: {e}")))?;
@@ -30,7 +55,7 @@ pub fn send(data: &[u8], dest: &str) -> Result<()> {
 
     let output = child
         .wait_with_output()
-        .map_err(|e| Error::Other(format!("failed to wait on ssh: {e}")))?;
+        .map_err(|e| Error::Other(format!("ssh wait failed: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -50,8 +75,10 @@ pub fn send(data: &[u8], dest: &str) -> Result<()> {
 /// Returns the bytes from the remote envstash send's stdout.
 pub fn fetch(source: &str) -> Result<Vec<u8>> {
     let dest = parse_dest(source);
+    validate_dest(dest)?;
 
-    let output = Command::new("ssh")
+    let output = spawn_clean("ssh")
+        .arg("--")
         .arg(dest)
         .arg("envstash send")
         .stdout(Stdio::piped())
@@ -65,4 +92,32 @@ pub fn fetch(source: &str) -> Result<Vec<u8>> {
     }
 
     Ok(output.stdout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_allows_normal_host() {
+        assert!(validate_dest("user@example.com").is_ok());
+        assert!(validate_dest("example.com").is_ok());
+        assert!(validate_dest("user@host:2222").is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_leading_dash() {
+        assert!(validate_dest("-oProxyCommand=evil").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty() {
+        assert!(validate_dest("").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_control_chars() {
+        assert!(validate_dest("user@host\nexploit").is_err());
+        assert!(validate_dest("user@host exploit").is_err());
+    }
 }

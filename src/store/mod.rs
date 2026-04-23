@@ -110,10 +110,10 @@ mod tests {
 
     #[test]
     fn insert_and_list() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -134,10 +134,10 @@ mod tests {
 
     #[test]
     fn list_filters_by_branch() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -149,7 +149,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -171,10 +171,10 @@ mod tests {
 
     #[test]
     fn list_filters_by_commit() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -186,7 +186,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -205,11 +205,11 @@ mod tests {
 
     #[test]
     fn list_respects_max() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         for i in 0..10 {
             queries::insert_save(
-                &conn,
+                &mut conn,
                 "/proj",
                 ".env",
                 "main",
@@ -228,10 +228,10 @@ mod tests {
 
     #[test]
     fn list_filter_by_filename() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -243,7 +243,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".db-env",
             "main",
@@ -262,10 +262,10 @@ mod tests {
 
     #[test]
     fn list_ordered_newest_first() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -277,7 +277,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -289,7 +289,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -313,10 +313,10 @@ mod tests {
 
     #[test]
     fn get_entries_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -345,10 +345,10 @@ mod tests {
 
     #[test]
     fn find_by_exact_hash() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -367,10 +367,10 @@ mod tests {
 
     #[test]
     fn find_by_prefix_hash() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -399,10 +399,10 @@ mod tests {
 
     #[test]
     fn list_saves_history_excludes_branch() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -414,7 +414,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -437,10 +437,10 @@ mod tests {
 
     #[test]
     fn delete_single_save() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -470,10 +470,10 @@ mod tests {
 
     #[test]
     fn delete_by_branch() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -485,7 +485,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -497,7 +497,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -509,7 +509,7 @@ mod tests {
         )
         .unwrap();
 
-        let count = queries::delete_saves_by_branch(&conn, "/proj", "main").unwrap();
+        let count = queries::delete_saves_by_branch(&mut conn, "/proj", "main").unwrap();
         assert_eq!(count, 2);
 
         let saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
@@ -519,10 +519,10 @@ mod tests {
 
     #[test]
     fn delete_by_project() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -534,7 +534,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/other",
             ".env",
             "main",
@@ -546,7 +546,7 @@ mod tests {
         )
         .unwrap();
 
-        let count = queries::delete_saves_by_project(&conn, "/proj").unwrap();
+        let count = queries::delete_saves_by_project(&mut conn, "/proj").unwrap();
         assert_eq!(count, 1);
 
         let proj_saves = queries::list_saves(&conn, "/proj", None, None, 10, None).unwrap();
@@ -563,10 +563,10 @@ mod tests {
 
     #[test]
     fn list_projects_summary() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -578,7 +578,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -590,7 +590,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             ".env",
             "main",
@@ -625,10 +625,10 @@ mod tests {
 
     #[test]
     fn get_all_saves_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -640,7 +640,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             ".env",
             "dev",
@@ -664,11 +664,11 @@ mod tests {
 
     #[test]
     fn encrypted_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn encrypted_values_not_plaintext_in_db() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = vec![EnvEntry {
             comment: Some("secret comment".to_string()),
@@ -694,7 +694,7 @@ mod tests {
             value: "super_secret_value".to_string(),
         }];
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -736,12 +736,12 @@ mod tests {
 
     #[test]
     fn encrypted_wrong_key_fails() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key1 = crate::crypto::aes::generate_key();
         let key2 = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -759,11 +759,11 @@ mod tests {
 
     #[test]
     fn hmac_computed_on_encrypted_insert() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -789,10 +789,10 @@ mod tests {
 
     #[test]
     fn hmac_empty_for_plaintext_insert() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -813,11 +813,11 @@ mod tests {
 
     #[test]
     fn hmac_verification_passes() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -835,11 +835,11 @@ mod tests {
 
     #[test]
     fn hmac_tamper_detection() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -869,12 +869,12 @@ mod tests {
 
     #[test]
     fn hmac_wrong_key_fails() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key1 = crate::crypto::aes::generate_key();
         let key2 = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -893,11 +893,11 @@ mod tests {
 
     #[test]
     fn metadata_operations_work_without_key() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -925,11 +925,11 @@ mod tests {
 
     #[test]
     fn encrypted_get_all_saves_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -941,7 +941,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             ".env",
             "dev",
@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn encrypted_empty_values_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = vec![EnvEntry {
             comment: None,
@@ -969,7 +969,7 @@ mod tests {
             value: String::new(),
         }];
         let id = queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",

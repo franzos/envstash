@@ -49,8 +49,9 @@ pub fn run(
         }
     }
 
-    // Never leak the store password to child processes.
+    // Never leak store credentials to child processes.
     cmd.env_remove("ENVSTASH_PASSWORD");
+    cmd.env_remove("ENVSTASH_KEY_FILE");
 
     let status = cmd
         .status()

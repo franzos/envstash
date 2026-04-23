@@ -1,6 +1,6 @@
 [package]
 name = "envstash"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 authors = ["Franz Geffke <mail@gofranz.com>"]
 description = "Manage .env files across git branches with versioning, diffing, and optional encryption"
@@ -33,6 +33,7 @@ git2 = { version = "0.19", default-features = false, features = ["vendored-libgi
 toml = "0.9.11"
 zeroize = "1"
 ureq = { version = "3", features = ["multipart"] }
+tempfile = "3"
 
 [package.metadata.deb]
 maintainer = "Franz Geffke <mail@gofranz.com>"
@@ -46,5 +47,8 @@ assets = [
     { source = "target/release/envstash", dest = "/usr/bin/envstash", mode = "755" },
 ]
 
-[dev-dependencies]
-tempfile = "3"
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

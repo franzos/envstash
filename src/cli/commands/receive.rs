@@ -18,10 +18,10 @@ pub fn run(
     cwd: &Path,
     file: Option<&str>,
     key_file: Option<&str>,
-    transport_password: Option<&str>,
+    password_file: Option<&Path>,
     from: Option<&str>,
 ) -> Result<()> {
-    let conn = cli::require_store()?;
+    let mut conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
     let (project_path, _git_ctx) = cli::resolve_project(cwd)?;
 
@@ -45,8 +45,15 @@ pub fn run(
         ));
     }
 
-    // Detect transport encryption and decrypt if needed.
-    let decrypted = transport::decrypt_auto(&raw_bytes, transport_password)?;
+    // Detect transport encryption and decrypt if needed. For password-based
+    // transport, resolve via `--password-file`, `ENVSTASH_PASSWORD`, or prompt.
+    // We only resolve lazily to avoid prompting when the payload is plaintext.
+    let decrypted = if transport::detect(&raw_bytes) == transport::TransportEncryption::Password {
+        let pw = crate::crypto::password::resolve_password(password_file)?;
+        transport::decrypt_auto(&raw_bytes, Some(&pw))?
+    } else {
+        transport::decrypt_auto(&raw_bytes, None)?
+    };
 
     // Convert decrypted bytes to string for parsing.
     let input = std::str::from_utf8(&decrypted)
@@ -79,7 +86,7 @@ pub fn run(
 
     // Insert into the store, preserving message.
     queries::insert_save_input(
-        &conn,
+        &mut conn,
         &SaveInput {
             project_path: &project_path,
             file_path: &envelope.file,
@@ -142,7 +149,7 @@ mod tests {
 
     #[test]
     fn import_json_envelope() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let envelope = sample_envelope();
         let json = export::to_json(&envelope).unwrap();
 
@@ -151,7 +158,7 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             &parsed.file,
             &parsed.branch,
@@ -175,7 +182,7 @@ mod tests {
 
     #[test]
     fn import_text_envelope() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let envelope = sample_envelope();
         let text = export::to_text(&envelope);
 
@@ -184,7 +191,7 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             &parsed.file,
             &parsed.branch,
@@ -203,7 +210,7 @@ mod tests {
 
     #[test]
     fn import_into_encrypted_store() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let envelope = sample_envelope();
         let json = export::to_json(&envelope).unwrap();
@@ -213,7 +220,7 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             &parsed.file,
             &parsed.branch,
@@ -235,12 +242,12 @@ mod tests {
 
     #[test]
     fn pipe_simulation_json() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
 
         // Save.
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -264,7 +271,7 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             &parsed.file,
             &parsed.branch,
@@ -285,11 +292,11 @@ mod tests {
 
     #[test]
     fn pipe_simulation_text() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -311,7 +318,7 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             &parsed.file,
             &parsed.branch,
@@ -395,12 +402,12 @@ mod tests {
 
     #[test]
     fn full_encrypted_share_import_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
 
         // Save to store.
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -427,7 +434,7 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             &parsed.file,
             &parsed.branch,
@@ -448,11 +455,11 @@ mod tests {
 
     #[test]
     fn full_encrypted_text_format_round_trip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "dev",
@@ -479,7 +486,7 @@ mod tests {
         let hash = crate::parser::content_hash(&imported_entries);
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             &parsed.file,
             &parsed.branch,
@@ -513,7 +520,7 @@ mod tests {
 
     #[test]
     fn import_preserves_message_json() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let mut envelope = sample_envelope();
         envelope.message = Some("important config".to_string());
         let json = export::to_json(&envelope).unwrap();
@@ -525,7 +532,7 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save_with_message(
-            &conn,
+            &mut conn,
             "/proj",
             &parsed.file,
             &parsed.branch,
@@ -544,7 +551,7 @@ mod tests {
 
     #[test]
     fn import_preserves_message_text() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let mut envelope = sample_envelope();
         envelope.message = Some("text format message".to_string());
         let text = export::to_text(&envelope);
@@ -556,7 +563,7 @@ mod tests {
         let hash = crate::parser::content_hash(&entries);
 
         queries::insert_save_with_message(
-            &conn,
+            &mut conn,
             "/proj",
             &parsed.file,
             &parsed.branch,

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::cli;
 use crate::error::{Error, Result};
 use crate::export;
@@ -5,8 +7,8 @@ use crate::export::transport;
 use crate::store::queries;
 
 /// Run the `load` command: import a dump file into the store.
-pub fn run(path: &str, password: Option<&str>, key_file: Option<&str>) -> Result<()> {
-    let conn = cli::require_store()?;
+pub fn run(path: &str, password_file: Option<&Path>, key_file: Option<&str>) -> Result<()> {
+    let mut conn = cli::require_store()?;
     let aes_key = cli::load_encryption_key(&conn, key_file)?;
 
     // Read the file.
@@ -17,8 +19,14 @@ pub fn run(path: &str, password: Option<&str>, key_file: Option<&str>) -> Result
         return Err(Error::Other("empty dump file".to_string()));
     }
 
-    // Auto-detect transport encryption and decrypt if needed.
-    let decrypted = transport::decrypt_auto(&data, password)?;
+    // Auto-detect transport encryption and decrypt if needed. Resolve password
+    // only when actually needed.
+    let decrypted = if transport::detect(&data) == transport::TransportEncryption::Password {
+        let pw = crate::crypto::password::resolve_password(password_file)?;
+        transport::decrypt_auto(&data, Some(&pw))?
+    } else {
+        transport::decrypt_auto(&data, None)?
+    };
 
     let text = String::from_utf8(decrypted)
         .map_err(|e| Error::Other(format!("invalid UTF-8 in dump file: {e}")))?;
@@ -27,7 +35,8 @@ pub fn run(path: &str, password: Option<&str>, key_file: Option<&str>) -> Result
     let dump = export::dump_from_json(&text)?;
 
     // Insert all saves, skipping duplicates.
-    let (inserted, skipped) = queries::insert_all_saves(&conn, &dump.saves, aes_key.as_deref())?;
+    let (inserted, skipped) =
+        queries::insert_all_saves(&mut conn, &dump.saves, aes_key.as_deref())?;
 
     println!("Loaded {inserted} saves ({skipped} skipped as duplicates)");
 
@@ -44,10 +53,10 @@ mod tests {
 
     #[test]
     fn load_from_dump_json() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -69,9 +78,10 @@ mod tests {
         let json = export::dump_to_json(&dump).unwrap();
 
         // Load into fresh store.
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, skipped) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let (inserted, skipped) =
+            queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 1);
         assert_eq!(skipped, 0);
 
@@ -82,10 +92,10 @@ mod tests {
 
     #[test]
     fn load_skips_duplicates() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -108,17 +118,18 @@ mod tests {
 
         // Load into the same store.
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, skipped) = queries::insert_all_saves(&conn, &parsed.saves, None).unwrap();
+        let (inserted, skipped) =
+            queries::insert_all_saves(&mut conn, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 0);
         assert_eq!(skipped, 1);
     }
 
     #[test]
     fn load_password_encrypted_dump() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -145,8 +156,8 @@ mod tests {
         let text = String::from_utf8(decrypted).unwrap();
         let parsed = export::dump_from_json(&text).unwrap();
 
-        let conn2 = test_conn();
-        let (inserted, _) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let mut conn2 = test_conn();
+        let (inserted, _) = queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 1);
 
         let loaded = queries::get_all_saves(&conn2, None).unwrap();
@@ -155,10 +166,10 @@ mod tests {
 
     #[test]
     fn load_encrypted_dump_into_encrypted_store() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -180,10 +191,11 @@ mod tests {
         let json = export::dump_to_json(&dump).unwrap();
 
         // Load into encrypted store.
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let key = crate::crypto::aes::generate_key();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, _) = queries::insert_all_saves(&conn2, &parsed.saves, Some(&key)).unwrap();
+        let (inserted, _) =
+            queries::insert_all_saves(&mut conn2, &parsed.saves, Some(&key)).unwrap();
         assert_eq!(inserted, 1);
 
         // Verify decryption works.
@@ -193,11 +205,11 @@ mod tests {
 
     #[test]
     fn load_from_encrypted_store_dump_into_plaintext() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let key = crate::crypto::aes::generate_key();
         let entries = sample_entries();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj",
             ".env",
             "main",
@@ -219,9 +231,9 @@ mod tests {
         let json = export::dump_to_json(&dump).unwrap();
 
         // Load into plaintext store.
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, _) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let (inserted, _) = queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 1);
 
         let loaded = queries::get_all_saves(&conn2, None).unwrap();
@@ -230,7 +242,7 @@ mod tests {
 
     #[test]
     fn load_multiple_projects_and_branches() {
-        let conn = test_conn();
+        let mut conn = test_conn();
         let entries1 = vec![EnvEntry {
             comment: None,
             key: "A".to_string(),
@@ -248,7 +260,7 @@ mod tests {
         }];
 
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "main",
@@ -260,7 +272,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj1",
             ".env",
             "dev",
@@ -272,7 +284,7 @@ mod tests {
         )
         .unwrap();
         queries::insert_save(
-            &conn,
+            &mut conn,
             "/proj2",
             "apps/.env",
             "main",
@@ -295,9 +307,10 @@ mod tests {
         let json = export::dump_to_json(&dump).unwrap();
 
         // Load into fresh store.
-        let conn2 = test_conn();
+        let mut conn2 = test_conn();
         let parsed = export::dump_from_json(&json).unwrap();
-        let (inserted, skipped) = queries::insert_all_saves(&conn2, &parsed.saves, None).unwrap();
+        let (inserted, skipped) =
+            queries::insert_all_saves(&mut conn2, &parsed.saves, None).unwrap();
         assert_eq!(inserted, 3);
         assert_eq!(skipped, 0);
 

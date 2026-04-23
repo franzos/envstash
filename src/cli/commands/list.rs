@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use colored::Colorize;
 use comfy_table::{Table, presets};
@@ -49,7 +50,8 @@ pub fn run(
         if saves.is_empty() {
             println!("No saved versions for branch '{}'.", branch.unwrap_or(""));
         } else {
-            print_saves(&saves, 1, long, &project_path, true);
+            let disk_hashes = build_disk_hash_map(&project_path, &saves);
+            print_saves(&saves, 1, long, &project_path, &disk_hashes, true);
         }
         return Ok(());
     }
@@ -60,7 +62,8 @@ pub fn run(
         if saves.is_empty() {
             println!("No saved versions for commit '{}'.", commit.unwrap_or(""));
         } else {
-            print_saves(&saves, 1, long, &project_path, true);
+            let disk_hashes = build_disk_hash_map(&project_path, &saves);
+            print_saves(&saves, 1, long, &project_path, &disk_hashes, true);
         }
         return Ok(());
     }
@@ -79,7 +82,8 @@ pub fn run(
         if saves.is_empty() {
             println!("No saved versions.");
         } else {
-            print_saves(&saves, 1, long, &project_path, false);
+            let disk_hashes = build_disk_hash_map(&project_path, &saves);
+            print_saves(&saves, 1, long, &project_path, &disk_hashes, false);
         }
         return Ok(());
     }
@@ -94,10 +98,12 @@ pub fn run(
         if !history.is_empty() {
             println!();
             println!("{}", "History:".bold());
-            print_saves(&history, 1, long, &project_path, true);
+            let disk_hashes = build_disk_hash_map(&project_path, &history);
+            print_saves(&history, 1, long, &project_path, &disk_hashes, true);
         }
     } else {
-        print_saves(&branch_saves, 1, long, &project_path, false);
+        let disk_hashes = build_disk_hash_map(&project_path, &branch_saves);
+        print_saves(&branch_saves, 1, long, &project_path, &disk_hashes, false);
         let remaining = max.saturating_sub(branch_saves.len());
         if remaining > 0 {
             let history = queries::list_saves_history(&conn, &project_path, cb, remaining)?;
@@ -105,12 +111,53 @@ pub fn run(
                 println!();
                 println!("{}", "History:".bold());
                 let start = branch_saves.len() + 1;
-                print_saves(&history, start, long, &project_path, true);
+                let history_hashes = build_disk_hash_map(&project_path, &history);
+                print_saves(&history, start, long, &project_path, &history_hashes, true);
             }
         }
     }
 
     Ok(())
+}
+
+/// Pre-hash every distinct on-disk file referenced by the save list once,
+/// so the render loop doesn't re-open/re-parse the same .env file per row.
+///
+/// `ls` is a read-only inspection command and must stay non-fatal when the
+/// on-disk file is unreadable or malformed. IO/parse errors are treated as
+/// "no disk file" for display purposes, but a single warning is emitted
+/// per path so the user isn't left wondering why the "current" marker is
+/// missing.
+fn build_disk_hash_map(
+    project_path: &str,
+    saves: &[SaveMetadata],
+) -> HashMap<PathBuf, Option<String>> {
+    let mut seen: HashMap<PathBuf, Option<String>> = HashMap::new();
+    for save in saves {
+        let key = PathBuf::from(project_path).join(&save.file_path);
+        if seen.contains_key(&key) {
+            continue;
+        }
+        let value = match cli::disk_content_hash(project_path, &save.file_path) {
+            Ok(opt) => opt,
+            Err(err) => {
+                eprintln!("envstash: warning: could not hash {}: {err}", key.display());
+                None
+            }
+        };
+        seen.insert(key, value);
+    }
+    seen
+}
+
+/// Look up the cached disk hash for a save's on-disk file.
+fn lookup_disk_hash<'a>(
+    project_path: &str,
+    save: &SaveMetadata,
+    cache: &'a HashMap<PathBuf, Option<String>>,
+) -> Option<&'a String> {
+    let key = PathBuf::from(project_path).join(&save.file_path);
+    cache.get(&key).and_then(|v| v.as_ref())
 }
 
 /// Format the message suffix for display: " -- message" or "".
@@ -126,12 +173,13 @@ fn print_saves(
     start_num: usize,
     long: bool,
     project_path: &str,
+    disk_hashes: &HashMap<PathBuf, Option<String>>,
     show_branch: bool,
 ) {
     if long {
-        print_saves_table(saves, start_num, project_path, show_branch);
+        print_saves_table(saves, start_num, project_path, disk_hashes, show_branch);
     } else {
-        print_saves_short(saves, start_num, project_path, show_branch);
+        print_saves_short(saves, start_num, project_path, disk_hashes, show_branch);
     }
 }
 
@@ -139,13 +187,14 @@ fn print_saves_short(
     saves: &[SaveMetadata],
     start_num: usize,
     project_path: &str,
+    disk_hashes: &HashMap<PathBuf, Option<String>>,
     show_branch: bool,
 ) {
     for (i, save) in saves.iter().enumerate() {
         let num = start_num + i;
         let hash = output::short_hash(&save.content_hash);
-        let marker = match cli::disk_content_hash(project_path, &save.file_path) {
-            Some(ref h) if *h == save.content_hash => format!(" {}", "*".bold().green()),
+        let marker = match lookup_disk_hash(project_path, save, disk_hashes) {
+            Some(h) if *h == save.content_hash => format!(" {}", "*".bold().green()),
             _ => String::new(),
         };
         let msg = message_suffix(save);
@@ -179,6 +228,7 @@ fn print_saves_table(
     saves: &[SaveMetadata],
     start_num: usize,
     project_path: &str,
+    disk_hashes: &HashMap<PathBuf, Option<String>>,
     show_branch: bool,
 ) {
     let mut table = Table::new();
@@ -192,8 +242,8 @@ fn print_saves_table(
 
     for (i, save) in saves.iter().enumerate() {
         let num = format!("{}", start_num + i);
-        let marker = match cli::disk_content_hash(project_path, &save.file_path) {
-            Some(ref h) if *h == save.content_hash => " *",
+        let marker = match lookup_disk_hash(project_path, save, disk_hashes) {
+            Some(h) if *h == save.content_hash => " *",
             _ => "",
         };
         let hash = format!("{}{marker}", output::short_hash(&save.content_hash));
